@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-#[allow(dead_code)]
 pub enum RefstoreError {
     #[error("failed to read file: {path}")]
     FileRead {
@@ -51,9 +50,6 @@ pub enum RefstoreError {
 
     #[error("failed to determine data directory; set XDG_DATA_HOME or --data-dir")]
     DataDirNotFound,
-
-    #[error("reference '{name}' has no cached content; fetch it first")]
-    NoContent { name: String },
 
     #[error("sync failed for '{name}': {reason}")]
     SyncFailed { name: String, reason: String },

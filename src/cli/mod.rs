@@ -149,6 +149,12 @@ pub enum RepoSubcommand {
         force: bool,
     },
 
+    /// Update cached content for a reference (re-fetch from source)
+    Update {
+        /// Name of the reference to update (omit for all)
+        name: Option<String>,
+    },
+
     /// Show detailed information about a reference
     Info {
         /// Name of the reference

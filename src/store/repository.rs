@@ -49,6 +49,17 @@ impl RepositoryStore {
         &self.config
     }
 
+    pub fn config_mut(&mut self) -> &mut GlobalConfig {
+        &mut self.config
+    }
+
+    pub fn save_config(&self) -> Result<(), RefstoreError> {
+        let path = self.root.join("config.toml");
+        let content = toml::to_string_pretty(&self.config)?;
+        fs::write(&path, content).map_err(|source| RefstoreError::FileWrite { path, source })?;
+        Ok(())
+    }
+
     pub fn content_path(&self, name: &str) -> PathBuf {
         self.root.join("content").join(name)
     }
@@ -114,7 +125,6 @@ impl RepositoryStore {
             .collect()
     }
 
-    #[allow(dead_code)]
     pub fn update(&mut self, name: &str) -> Result<(), RefstoreError> {
         let reference = self
             .index

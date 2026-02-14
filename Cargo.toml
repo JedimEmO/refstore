@@ -19,6 +19,7 @@ tokio = { version = "1", features = ["full"] }
 rmcp = { version = "0.15", features = ["transport-io"] }
 dirs = "6"
 walkdir = "2"
+globset = "0.4"
 thiserror = "2"
 anyhow = "1"
 tracing = "0.1"

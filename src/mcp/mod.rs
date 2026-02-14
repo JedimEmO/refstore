@@ -1,6 +1,7 @@
 pub mod tools;
 
 use anyhow::Result;
+use tokio::sync::Mutex;
 
 use rmcp::ServiceExt;
 use rmcp::transport::stdio;
@@ -15,7 +16,7 @@ pub async fn serve(
     scope: McpScope,
     project: Option<ProjectStore>,
 ) -> Result<()> {
-    let server = RefstoreMcpServer::new(repo, scope, project);
+    let server = RefstoreMcpServer::new(repo, scope, Mutex::new(project));
     let service = server.serve(stdio()).await?;
     service.waiting().await?;
     Ok(())

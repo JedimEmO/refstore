@@ -1,7 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use globset::{Glob, GlobSetBuilder};
 
+use crate::model::ManifestEntry;
 use crate::store::{ProjectStore, RepositoryStore};
 
 pub fn run(data_dir: Option<&PathBuf>, name: Option<String>, force: bool) -> Result<()> {
@@ -42,13 +44,12 @@ pub fn run(data_dir: Option<&PathBuf>, name: Option<String>, force: bool) -> Res
         let reference = match repo.get(ref_name) {
             Some(r) => r,
             None => {
-                eprintln!(
-                    "warning: '{ref_name}' not found in central repository, skipping"
-                );
+                eprintln!("warning: '{ref_name}' not found in central repository, skipping");
                 failed += 1;
                 continue;
             }
         };
+        let _ = reference; // used for future metadata; currently we only need the content path
 
         let target_dir = match &entry.path {
             Some(p) => refs_dir.join(p),
@@ -63,7 +64,6 @@ pub fn run(data_dir: Option<&PathBuf>, name: Option<String>, force: bool) -> Res
         }
 
         if target_dir.exists() && !force {
-            // Check if content is a git repo and compare hashes
             if crate::git::is_git_repo(&source_dir) && crate::git::is_git_repo(&target_dir) {
                 let source_hash = crate::git::head_hash(&source_dir).unwrap_or_default();
                 let target_hash = crate::git::head_hash(&target_dir).unwrap_or_default();
@@ -74,13 +74,17 @@ pub fn run(data_dir: Option<&PathBuf>, name: Option<String>, force: bool) -> Res
                 }
             }
 
-            // Remove and re-copy
             let _ = std::fs::remove_dir_all(&target_dir);
         }
 
-        match copy_reference(&source_dir, &target_dir, reference) {
-            Ok(()) => {
-                println!("  {ref_name}: synced to {}", target_dir.display());
+        match copy_reference(&source_dir, &target_dir, entry) {
+            Ok(count) => {
+                let suffix = if !entry.include.is_empty() || !entry.exclude.is_empty() {
+                    format!(" ({count} files, filtered)")
+                } else {
+                    String::new()
+                };
+                println!("  {ref_name}: synced to {}{suffix}", target_dir.display());
                 synced += 1;
             }
             Err(e) => {
@@ -94,32 +98,70 @@ pub fn run(data_dir: Option<&PathBuf>, name: Option<String>, force: bool) -> Res
     Ok(())
 }
 
-fn copy_reference(
-    source: &std::path::Path,
-    target: &std::path::Path,
-    _reference: &crate::model::Reference,
-) -> Result<()> {
+fn copy_reference(source: &Path, target: &Path, entry: &ManifestEntry) -> Result<usize> {
     if source.is_file() {
         std::fs::create_dir_all(target.parent().unwrap_or(target))?;
         std::fs::copy(source, target)?;
-    } else {
-        copy_dir_recursive(source, target)?;
+        return Ok(1);
     }
-    Ok(())
-}
 
-fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()> {
-    std::fs::create_dir_all(dst)?;
-    for entry in walkdir::WalkDir::new(src).min_depth(1) {
+    let include_set = if entry.include.is_empty() {
+        None
+    } else {
+        let mut builder = GlobSetBuilder::new();
+        for pattern in &entry.include {
+            builder.add(Glob::new(pattern).with_context(|| format!("invalid include glob: {pattern}"))?);
+        }
+        Some(builder.build().context("failed to build include globset")?)
+    };
+
+    let exclude_set = if entry.exclude.is_empty() {
+        None
+    } else {
+        let mut builder = GlobSetBuilder::new();
+        for pattern in &entry.exclude {
+            builder.add(Glob::new(pattern).with_context(|| format!("invalid exclude glob: {pattern}"))?);
+        }
+        Some(builder.build().context("failed to build exclude globset")?)
+    };
+
+    let has_filters = include_set.is_some() || exclude_set.is_some();
+    let mut count = 0;
+
+    std::fs::create_dir_all(target)?;
+    for entry in walkdir::WalkDir::new(source).min_depth(1) {
         let entry = entry?;
-        let relative = entry.path().strip_prefix(src)?;
-        let target = dst.join(relative);
+        let relative = entry.path().strip_prefix(source)?;
+        let relative_str = relative.to_string_lossy();
+        let dest = target.join(relative);
 
         if entry.file_type().is_dir() {
-            std::fs::create_dir_all(&target)?;
-        } else {
-            std::fs::copy(entry.path(), &target)?;
+            // Only create dirs eagerly if no filters; otherwise let file copies create parents
+            if !has_filters {
+                std::fs::create_dir_all(&dest)?;
+            }
+            continue;
         }
+
+        // Apply include filter (if any includes, file must match at least one)
+        if let Some(ref inc) = include_set {
+            if !inc.is_match(relative_str.as_ref()) {
+                continue;
+            }
+        }
+
+        // Apply exclude filter
+        if let Some(ref exc) = exclude_set {
+            if exc.is_match(relative_str.as_ref()) {
+                continue;
+            }
+        }
+
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::copy(entry.path(), &dest)?;
+        count += 1;
     }
-    Ok(())
+    Ok(count)
 }

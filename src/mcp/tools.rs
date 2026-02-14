@@ -4,7 +4,9 @@ use rmcp::schemars;
 use rmcp::schemars::JsonSchema;
 use rmcp::{ServerHandler, tool, tool_handler, tool_router};
 
-use crate::model::McpScope;
+use tokio::sync::Mutex;
+
+use crate::model::{ManifestEntry, McpScope};
 use crate::store::{ProjectStore, RepositoryStore};
 
 // Parameter types for each tool
@@ -56,17 +58,21 @@ pub struct AddToProjectParams {
 pub struct RefstoreMcpServer {
     repo: RepositoryStore,
     scope: McpScope,
-    _project: Option<ProjectStore>,
+    project: Mutex<Option<ProjectStore>>,
     tool_router: ToolRouter<Self>,
 }
 
 #[tool_router]
 impl RefstoreMcpServer {
-    pub fn new(repo: RepositoryStore, scope: McpScope, project: Option<ProjectStore>) -> Self {
+    pub fn new(
+        repo: RepositoryStore,
+        scope: McpScope,
+        project: Mutex<Option<ProjectStore>>,
+    ) -> Self {
         Self {
             repo,
             scope,
-            _project: project,
+            project,
             tool_router: Self::tool_router(),
         }
     }
@@ -298,10 +304,27 @@ impl RefstoreMcpServer {
             ))]));
         }
 
-        Ok(CallToolResult::success(vec![Content::text(format!(
-            "TODO: add '{}' to project manifest. Run `refstore add {}` from CLI for now.",
-            params.name, params.name
-        ))]))
+        let mut project_guard = self.project.lock().await;
+        let project = match project_guard.as_mut() {
+            Some(p) => p,
+            None => {
+                return Ok(CallToolResult::error(vec![Content::text(
+                    "No project manifest found. Run `refstore init` first.".to_string(),
+                )]));
+            }
+        };
+
+        let entry = ManifestEntry::default();
+        match project.add_reference(params.name.clone(), entry) {
+            Ok(()) => Ok(CallToolResult::success(vec![Content::text(format!(
+                "Added '{}' to project manifest. Run `refstore sync` to fetch content.",
+                params.name
+            ))])),
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Failed to add '{}': {e}",
+                params.name
+            ))])),
+        }
     }
 }
 

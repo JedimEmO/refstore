@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -19,6 +20,7 @@ pub fn run(data_dir: Option<&PathBuf>, cmd: RepoSubcommand) -> Result<()> {
         } => run_add(data_dir, name, source, description, tag, git_ref, subpath),
         RepoSubcommand::List { tag, kind } => run_list(data_dir, tag, kind),
         RepoSubcommand::Remove { name, force } => run_remove(data_dir, name, force),
+        RepoSubcommand::Update { name } => run_update(data_dir, name),
         RepoSubcommand::Info { name } => run_info(data_dir, name),
     }
 }
@@ -84,14 +86,70 @@ fn run_list(data_dir: Option<&PathBuf>, tag: Option<String>, kind: Option<String
     Ok(())
 }
 
-fn run_remove(data_dir: Option<&PathBuf>, name: String, _force: bool) -> Result<()> {
+fn run_remove(data_dir: Option<&PathBuf>, name: String, force: bool) -> Result<()> {
     let mut repo = RepositoryStore::open(data_dir.map(|p| p.as_path()))
         .context("failed to open central repository")?;
+
+    if !force {
+        let reference = repo
+            .get(&name)
+            .ok_or_else(|| anyhow::anyhow!("reference '{name}' not found"))?;
+
+        eprint!(
+            "Remove '{}' ({}) from central repository? [y/N] ",
+            name, reference.source
+        );
+        std::io::stderr().flush()?;
+
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        if !input.trim().eq_ignore_ascii_case("y") {
+            println!("Cancelled.");
+            return Ok(());
+        }
+    }
 
     repo.remove(&name)
         .context("failed to remove reference from repository")?;
 
     println!("Removed '{name}' from central repository.");
+    Ok(())
+}
+
+fn run_update(data_dir: Option<&PathBuf>, name: Option<String>) -> Result<()> {
+    let mut repo = RepositoryStore::open(data_dir.map(|p| p.as_path()))
+        .context("failed to open central repository")?;
+
+    let names: Vec<String> = match name {
+        Some(n) => vec![n],
+        None => repo.list(None, None).iter().map(|r| r.name.clone()).collect(),
+    };
+
+    if names.is_empty() {
+        println!("No references in repository.");
+        return Ok(());
+    }
+
+    let mut updated = 0;
+    let mut failed = 0;
+
+    for ref_name in &names {
+        print!("  {ref_name}: updating... ");
+        std::io::stdout().flush()?;
+
+        match repo.update(ref_name) {
+            Ok(()) => {
+                println!("done");
+                updated += 1;
+            }
+            Err(e) => {
+                println!("FAILED - {e}");
+                failed += 1;
+            }
+        }
+    }
+
+    println!("\nUpdate complete: {updated} updated, {failed} failed");
     Ok(())
 }
 
@@ -112,7 +170,10 @@ fn run_info(data_dir: Option<&PathBuf>, name: String) -> Result<()> {
     if !reference.tags.is_empty() {
         println!("Tags:        {}", reference.tags.join(", "));
     }
-    println!("Added:       {}", reference.added_at.format("%Y-%m-%d %H:%M:%S UTC"));
+    println!(
+        "Added:       {}",
+        reference.added_at.format("%Y-%m-%d %H:%M:%S UTC")
+    );
     if let Some(synced) = &reference.last_synced {
         println!("Last synced: {}", synced.format("%Y-%m-%d %H:%M:%S UTC"));
     }
@@ -134,7 +195,6 @@ fn parse_source(
     git_ref: Option<String>,
     subpath: Option<PathBuf>,
 ) -> Result<(ReferenceKind, ReferenceSource)> {
-    // Check if it looks like a git URL
     if source.starts_with("https://")
         || source.starts_with("http://")
         || source.starts_with("git@")
@@ -151,12 +211,9 @@ fn parse_source(
         ));
     }
 
-    // Otherwise treat as local path
     let path = PathBuf::from(source);
     let path = if path.is_relative() {
-        std::env::current_dir()
-            .unwrap_or_default()
-            .join(&path)
+        std::env::current_dir().unwrap_or_default().join(&path)
     } else {
         path
     };

@@ -38,7 +38,7 @@ pub fn clone_shallow(
     Ok(())
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // planned for incremental update support
 pub fn pull(repo_path: &Path) -> Result<(), RefstoreError> {
     let output = Command::new("git")
         .args(["pull", "--ff-only"])
