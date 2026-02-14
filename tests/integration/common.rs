@@ -100,4 +100,64 @@ impl TestEnv {
             .assert()
             .success();
     }
+
+    /// Create a fake registry as a git repo with an index.toml and content.
+    /// Returns the path to the registry dir (usable as a file:// URL).
+    pub fn create_fake_registry(&self, refs: &[(&str, &str)]) -> PathBuf {
+        let reg_dir = self.project_dir.path().join("fake-registry");
+        fs::create_dir_all(reg_dir.join("content")).unwrap();
+
+        // Write content for each reference
+        let mut toml_refs = String::new();
+        for (name, content) in refs {
+            let ref_content_dir = reg_dir.join("content").join(name);
+            fs::create_dir_all(&ref_content_dir).unwrap();
+            fs::write(ref_content_dir.join("README.md"), content).unwrap();
+
+            toml_refs.push_str(&format!(
+                r#"
+[references.{name}]
+name = "{name}"
+kind = "directory"
+added_at = "2026-01-01T00:00:00Z"
+
+[references.{name}.source]
+type = "local"
+path = "/fake"
+"#
+            ));
+        }
+
+        let index = format!("version = 1\n{toml_refs}");
+        fs::write(reg_dir.join("index.toml"), index).unwrap();
+
+        // Init as a git repo
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&reg_dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "test"])
+            .current_dir(&reg_dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test"])
+            .current_dir(&reg_dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&reg_dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&reg_dir)
+            .output()
+            .unwrap();
+
+        reg_dir
+    }
 }

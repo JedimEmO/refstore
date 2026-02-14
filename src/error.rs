@@ -65,4 +65,10 @@ pub enum RefstoreError {
 
     #[error("bundle '{bundle}' references unknown reference '{reference}'")]
     BundleInvalidReference { bundle: String, reference: String },
+
+    #[error("registry '{name}' not found")]
+    RegistryNotFound { name: String },
+
+    #[error("registry '{name}' already exists")]
+    RegistryExists { name: String },
 }

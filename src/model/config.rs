@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use super::registry::Registry;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum McpScope {
@@ -34,6 +36,8 @@ pub struct GlobalConfig {
     pub git_depth: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub registries: Vec<Registry>,
 }
 
 fn default_depth() -> u32 {
@@ -47,6 +51,7 @@ impl Default for GlobalConfig {
             mcp_scope: McpScope::default(),
             git_depth: 1,
             default_branch: None,
+            registries: Vec::new(),
         }
     }
 }

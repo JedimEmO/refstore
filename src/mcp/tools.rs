@@ -157,13 +157,15 @@ impl RefstoreMcpServer {
         &self,
         rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<ReadReferenceFileParams>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let content_dir = self.repo.content_path(&params.reference);
-        if !content_dir.exists() {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
-                "Reference '{}' has no cached content.",
-                params.reference
-            ))]));
-        }
+        let content_dir = match self.repo.resolve_content_path(&params.reference) {
+            Some(p) if p.exists() => p,
+            _ => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Reference '{}' has no cached content.",
+                    params.reference
+                ))]));
+            }
+        };
 
         let file_path = content_dir.join(&params.path);
         if !file_path.starts_with(&content_dir) {
@@ -185,7 +187,8 @@ impl RefstoreMcpServer {
         &self,
         rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<ListReferenceFilesParams>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let content_dir = self.repo.content_path(&params.reference);
+        let content_dir = self.repo.resolve_content_path(&params.reference)
+            .unwrap_or_else(|| self.repo.content_path(&params.reference));
         let target = match &params.subpath {
             Some(p) => content_dir.join(p),
             None => content_dir.clone(),
@@ -248,7 +251,10 @@ impl RefstoreMcpServer {
         let mut results = Vec::new();
 
         for r in refs {
-            let content_dir = self.repo.content_path(&r.name);
+            let content_dir = match self.repo.resolve_content_path(&r.name) {
+                Some(p) => p,
+                None => self.repo.content_path(&r.name),
+            };
             if !content_dir.exists() {
                 continue;
             }

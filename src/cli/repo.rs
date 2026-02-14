@@ -22,6 +22,8 @@ pub fn run(data_dir: Option<&PathBuf>, cmd: RepoSubcommand) -> Result<()> {
         RepoSubcommand::Remove { name, force } => run_remove(data_dir, name, force),
         RepoSubcommand::Update { name } => run_update(data_dir, name),
         RepoSubcommand::Info { name } => run_info(data_dir, name),
+        RepoSubcommand::Tag { name, message } => run_tag(data_dir, name, message),
+        RepoSubcommand::Tags => run_tags(data_dir),
         RepoSubcommand::Bundle(cmd) => crate::cli::bundle::run(data_dir, cmd),
     }
 }
@@ -187,6 +189,36 @@ fn run_info(data_dir: Option<&PathBuf>, name: String) -> Result<()> {
         println!("Content:     {}", content_path.display());
     } else {
         println!("Content:     (not cached)");
+    }
+    Ok(())
+}
+
+fn run_tag(data_dir: Option<&PathBuf>, name: String, message: Option<String>) -> Result<()> {
+    let repo = RepositoryStore::open(data_dir.map(|p| p.as_path()))
+        .context("failed to open central repository")?;
+
+    repo.create_tag(&name, message.as_deref())
+        .with_context(|| format!("failed to create tag '{name}'"))?;
+
+    println!("Created tag '{name}' on the local registry.");
+    println!("Use --pin {name} when adding references to pin to this version.");
+    Ok(())
+}
+
+fn run_tags(data_dir: Option<&PathBuf>) -> Result<()> {
+    let repo = RepositoryStore::open(data_dir.map(|p| p.as_path()))
+        .context("failed to open central repository")?;
+
+    let tags = repo.list_tags().context("failed to list tags")?;
+
+    if tags.is_empty() {
+        println!("No tags. Create one with `refstore repo tag <name>`.");
+        return Ok(());
+    }
+
+    println!("Registry tags:");
+    for tag in &tags {
+        println!("  {tag}");
     }
     Ok(())
 }

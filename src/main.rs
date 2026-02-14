@@ -57,6 +57,8 @@ async fn main() -> Result<()> {
         cli::Command::Repo(cmd) => cli::repo::run(cli.data_dir.as_ref(), cmd),
         cli::Command::Mcp => cli::mcp::run(cli.data_dir).await,
         cli::Command::InstallMcp { name, path } => cli::install_mcp::run(name, path),
+        cli::Command::Registry(cmd) => cli::registry::run(cli.data_dir.as_ref(), cmd),
+        cli::Command::Versions { name } => cli::versions::run(cli.data_dir.as_ref(), name),
         cli::Command::Config(cmd) => cli::config::run(cli.data_dir.as_ref(), cmd),
     }
 }

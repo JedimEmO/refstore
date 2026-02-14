@@ -4,11 +4,13 @@ pub mod config;
 pub mod init;
 pub mod install_mcp;
 pub mod mcp;
+pub mod registry;
 pub mod remove;
 pub mod repo;
 pub mod self_ref;
 pub mod status;
 pub mod sync;
+pub mod versions;
 
 use std::path::PathBuf;
 
@@ -126,6 +128,16 @@ pub enum Command {
         path: Option<PathBuf>,
     },
 
+    /// Manage remote registries
+    #[command(subcommand)]
+    Registry(RegistrySubcommand),
+
+    /// Show version history for a reference
+    Versions {
+        /// Name of the reference
+        name: String,
+    },
+
     /// Manage global configuration
     #[command(subcommand)]
     Config(ConfigSubcommand),
@@ -191,6 +203,19 @@ pub enum RepoSubcommand {
         name: String,
     },
 
+    /// Tag the current state of the registry for version pinning
+    Tag {
+        /// Tag name (e.g., "v1.0")
+        name: String,
+
+        /// Optional tag message (creates annotated tag)
+        #[arg(short, long)]
+        message: Option<String>,
+    },
+
+    /// List tags on the registry
+    Tags,
+
     /// Manage bundles (named groups of references)
     #[command(subcommand)]
     Bundle(BundleSubcommand),
@@ -255,6 +280,32 @@ pub enum BundleSubcommand {
         /// Skip confirmation prompt
         #[arg(short, long)]
         force: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RegistrySubcommand {
+    /// Add a remote registry
+    Add {
+        /// Unique name for this registry
+        name: String,
+        /// Git URL of the registry repository
+        url: String,
+    },
+    /// Remove a remote registry
+    Remove {
+        /// Name of the registry to remove
+        name: String,
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
+    /// List all configured registries
+    List,
+    /// Update registry definitions (git pull)
+    Update {
+        /// Specific registry to update (omit for all)
+        name: Option<String>,
     },
 }
 

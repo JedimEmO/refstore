@@ -82,7 +82,13 @@ pub fn run(data_dir: Option<&PathBuf>) -> Result<()> {
             .unwrap_or_default();
 
         let source = if manifest.references.contains_key(name) {
-            String::new()
+            // Show registry origin if not from local
+            match repo.resolve(name) {
+                Some(r) if r.registry_name != "local" => {
+                    format!(" (registry: {})", r.registry_name)
+                }
+                _ => String::new(),
+            }
         } else if let Some(bundle_name) = ref_to_bundle.get(name) {
             format!(" (via bundle: {bundle_name})")
         } else {

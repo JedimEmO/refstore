@@ -54,14 +54,34 @@ pub fn run(data_dir: Option<&PathBuf>, name: Option<String>, force: bool) -> Res
             None => refs_dir.join(ref_name),
         };
 
-        let source_dir = repo.content_path(ref_name);
-        if !source_dir.exists() {
-            eprintln!("warning: no cached content for '{ref_name}', skipping");
-            failed += 1;
-            continue;
-        }
+        // If version is pinned, extract content from that specific git ref
+        let versioned_source = if let Some(version) = &entry.version {
+            match repo.content_at_version(ref_name, version) {
+                Ok(path) => Some(path),
+                Err(e) => {
+                    eprintln!("  {ref_name}: FAILED - {e}");
+                    failed += 1;
+                    continue;
+                }
+            }
+        } else {
+            None
+        };
 
-        if target_dir.exists() && !force {
+        let source_dir = if let Some(ref versioned) = versioned_source {
+            versioned.clone()
+        } else {
+            match repo.resolve_content_path(ref_name) {
+                Some(p) if p.exists() => p,
+                _ => {
+                    eprintln!("warning: no cached content for '{ref_name}', skipping");
+                    failed += 1;
+                    continue;
+                }
+            }
+        };
+
+        if target_dir.exists() && !force && versioned_source.is_none() {
             if crate::git::is_git_repo(&source_dir) && crate::git::is_git_repo(&target_dir) {
                 let source_hash = crate::git::head_hash(&source_dir).unwrap_or_default();
                 let target_hash = crate::git::head_hash(&target_dir).unwrap_or_default();
@@ -73,22 +93,36 @@ pub fn run(data_dir: Option<&PathBuf>, name: Option<String>, force: bool) -> Res
             }
 
             let _ = std::fs::remove_dir_all(&target_dir);
+        } else if target_dir.exists() {
+            let _ = std::fs::remove_dir_all(&target_dir);
         }
 
         match copy_reference(&source_dir, &target_dir, entry) {
             Ok(count) => {
-                let suffix = if !entry.include.is_empty() || !entry.exclude.is_empty() {
-                    format!(" ({count} files, filtered)")
-                } else {
+                let mut suffix_parts = Vec::new();
+                if !entry.include.is_empty() || !entry.exclude.is_empty() {
+                    suffix_parts.push(format!("{count} files, filtered"));
+                }
+                if let Some(version) = &entry.version {
+                    suffix_parts.push(format!("version: {version}"));
+                }
+                let suffix = if suffix_parts.is_empty() {
                     String::new()
+                } else {
+                    format!(" ({})", suffix_parts.join(", "))
                 };
-                println!("  {ref_name}: synced to {}{suffix}", target_dir.display());
+                println!("  {ref_name}: synced{suffix}");
                 synced += 1;
             }
             Err(e) => {
                 eprintln!("  {ref_name}: FAILED - {e}");
                 failed += 1;
             }
+        }
+
+        // Clean up versioned temp dir if used
+        if let Some(versioned) = versioned_source {
+            let _ = std::fs::remove_dir_all(&versioned);
         }
     }
 
