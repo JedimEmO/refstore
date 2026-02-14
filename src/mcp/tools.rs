@@ -53,6 +53,18 @@ pub struct AddToProjectParams {
     pub name: String,
 }
 
+#[derive(Debug, Clone, serde::Deserialize, JsonSchema)]
+pub struct ListBundlesParams {
+    #[schemars(description = "Optional tag to filter by")]
+    pub tag: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, JsonSchema)]
+pub struct GetBundleParams {
+    #[schemars(description = "Name of the bundle")]
+    pub name: String,
+}
+
 // Server struct
 
 pub struct RefstoreMcpServer {
@@ -283,6 +295,69 @@ impl RefstoreMcpServer {
         };
 
         Ok(CallToolResult::success(vec![Content::text(text)]))
+    }
+
+    #[tool(description = "List all bundles (named groups of references)")]
+    async fn list_bundles(
+        &self,
+        rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<ListBundlesParams>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let bundles = self.repo.list_bundles(params.tag.as_deref());
+        let output: Vec<_> = bundles
+            .iter()
+            .map(|b| {
+                let tags = if b.tags.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [{}]", b.tags.join(", "))
+                };
+                let desc = b
+                    .description
+                    .as_ref()
+                    .map(|d| format!(" - {d}"))
+                    .unwrap_or_default();
+                format!("{} ({} refs){}{}", b.name, b.references.len(), desc, tags)
+            })
+            .collect();
+
+        let text = if output.is_empty() {
+            "No bundles found.".to_string()
+        } else {
+            output.join("\n")
+        };
+
+        Ok(CallToolResult::success(vec![Content::text(text)]))
+    }
+
+    #[tool(description = "Get detailed information about a bundle (named group of references)")]
+    async fn get_bundle(
+        &self,
+        rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<GetBundleParams>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let bundle = match self.repo.get_bundle(&params.name) {
+            Some(b) => b,
+            None => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Bundle '{}' not found.",
+                    params.name
+                ))]));
+            }
+        };
+
+        let refs_list = bundle.references.join(", ");
+        let info = format!(
+            "Name: {}\nDescription: {}\nTags: {}\nReferences: {}",
+            bundle.name,
+            bundle.description.as_deref().unwrap_or("(none)"),
+            if bundle.tags.is_empty() {
+                "(none)".to_string()
+            } else {
+                bundle.tags.join(", ")
+            },
+            refs_list
+        );
+
+        Ok(CallToolResult::success(vec![Content::text(info)]))
     }
 
     #[tool(description = "Add a reference to the current project manifest (requires write permission)")]

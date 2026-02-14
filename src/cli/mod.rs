@@ -1,4 +1,5 @@
 pub mod add;
+pub mod bundle;
 pub mod config;
 pub mod init;
 pub mod install_mcp;
@@ -54,10 +55,14 @@ pub enum Command {
         self_ref: bool,
     },
 
-    /// Add a reference to the project manifest
+    /// Add a reference or bundle to the project manifest
     Add {
-        /// Name of the reference (must exist in central repository)
+        /// Name of the reference or bundle (must exist in central repository)
         name: String,
+
+        /// Add a bundle instead of a single reference
+        #[arg(long)]
+        bundle: bool,
 
         /// Pin to a specific version/commit
         #[arg(long, alias = "rev")]
@@ -76,10 +81,14 @@ pub enum Command {
         exclude: Vec<String>,
     },
 
-    /// Remove a reference from the project manifest
+    /// Remove a reference or bundle from the project manifest
     Remove {
-        /// Name of the reference to remove
+        /// Name of the reference or bundle to remove
         name: String,
+
+        /// Remove a bundle instead of a single reference
+        #[arg(long)]
+        bundle: bool,
 
         /// Also delete the synced content from .references/
         #[arg(long)]
@@ -180,6 +189,72 @@ pub enum RepoSubcommand {
     Info {
         /// Name of the reference
         name: String,
+    },
+
+    /// Manage bundles (named groups of references)
+    #[command(subcommand)]
+    Bundle(BundleSubcommand),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BundleSubcommand {
+    /// Create a new bundle
+    Create {
+        /// Unique name for the bundle
+        name: String,
+
+        /// References to include in this bundle
+        #[arg(long = "ref", required = true)]
+        refs: Vec<String>,
+
+        /// Human-readable description
+        #[arg(short, long)]
+        description: Option<String>,
+
+        /// Tags for organization
+        #[arg(short, long)]
+        tag: Vec<String>,
+    },
+
+    /// List all bundles
+    List {
+        /// Filter by tag
+        #[arg(short, long)]
+        tag: Option<String>,
+    },
+
+    /// Show detailed information about a bundle
+    Info {
+        /// Name of the bundle
+        name: String,
+    },
+
+    /// Add or remove references from a bundle
+    Update {
+        /// Name of the bundle to modify
+        name: String,
+
+        /// References to add
+        #[arg(long = "add-ref")]
+        add_refs: Vec<String>,
+
+        /// References to remove
+        #[arg(long = "remove-ref")]
+        remove_refs: Vec<String>,
+
+        /// Update description
+        #[arg(short, long)]
+        description: Option<String>,
+    },
+
+    /// Remove a bundle from the central repository
+    Remove {
+        /// Name of the bundle to remove
+        name: String,
+
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
     },
 }
 

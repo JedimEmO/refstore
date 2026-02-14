@@ -23,6 +23,8 @@ pub struct Manifest {
     pub gitignore_references: bool,
     #[serde(default)]
     pub references: BTreeMap<String, ManifestEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bundles: Vec<String>,
 }
 
 fn default_version() -> u32 {
@@ -39,6 +41,7 @@ impl Manifest {
             version: 1,
             gitignore_references,
             references: BTreeMap::new(),
+            bundles: Vec::new(),
         }
     }
 }

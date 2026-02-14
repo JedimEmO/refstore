@@ -22,6 +22,7 @@ pub fn run(data_dir: Option<&PathBuf>, cmd: RepoSubcommand) -> Result<()> {
         RepoSubcommand::Remove { name, force } => run_remove(data_dir, name, force),
         RepoSubcommand::Update { name } => run_update(data_dir, name),
         RepoSubcommand::Info { name } => run_info(data_dir, name),
+        RepoSubcommand::Bundle(cmd) => crate::cli::bundle::run(data_dir, cmd),
     }
 }
 

@@ -82,6 +82,16 @@ impl TestEnv {
         cmd.assert().success();
     }
 
+    /// Shorthand: create a bundle in the central repo from existing references.
+    pub fn create_bundle(&self, name: &str, refs: &[&str]) {
+        let mut cmd = self.cmd();
+        cmd.args(["repo", "bundle", "create", name]);
+        for r in refs {
+            cmd.args(["--ref", r]);
+        }
+        cmd.assert().success();
+    }
+
     /// Shorthand: init project in project_dir (skips self-ref prompt).
     pub fn init_project(&self) {
         self.cmd()

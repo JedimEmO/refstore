@@ -6,7 +6,7 @@ use chrono::Utc;
 use crate::error::RefstoreError;
 use crate::git;
 use crate::model::{
-    GlobalConfig, Reference, ReferenceSource, RepositoryIndex,
+    Bundle, GlobalConfig, Reference, ReferenceSource, RepositoryIndex,
 };
 
 pub struct RepositoryStore {
@@ -150,6 +150,100 @@ impl RepositoryStore {
                 }
             }
         }
+        self.save_index()?;
+        Ok(())
+    }
+
+    // --- Bundle operations ---
+
+    pub fn add_bundle(&mut self, bundle: Bundle) -> Result<(), RefstoreError> {
+        if self.index.bundles.contains_key(&bundle.name) {
+            return Err(RefstoreError::BundleExists {
+                name: bundle.name,
+            });
+        }
+        validate_name(&bundle.name)?;
+
+        for ref_name in &bundle.references {
+            if !self.index.references.contains_key(ref_name) {
+                return Err(RefstoreError::BundleInvalidReference {
+                    bundle: bundle.name.clone(),
+                    reference: ref_name.clone(),
+                });
+            }
+        }
+
+        self.index.bundles.insert(bundle.name.clone(), bundle);
+        self.save_index()?;
+        Ok(())
+    }
+
+    pub fn remove_bundle(&mut self, name: &str) -> Result<Bundle, RefstoreError> {
+        let bundle = self
+            .index
+            .bundles
+            .remove(name)
+            .ok_or_else(|| RefstoreError::BundleNotFound {
+                name: name.to_string(),
+            })?;
+        self.save_index()?;
+        Ok(bundle)
+    }
+
+    pub fn get_bundle(&self, name: &str) -> Option<&Bundle> {
+        self.index.bundles.get(name)
+    }
+
+    pub fn list_bundles(&self, tag: Option<&str>) -> Vec<&Bundle> {
+        self.index
+            .bundles
+            .values()
+            .filter(|b| {
+                if let Some(t) = tag {
+                    b.tags.iter().any(|bt| bt == t)
+                } else {
+                    true
+                }
+            })
+            .collect()
+    }
+
+    pub fn update_bundle(
+        &mut self,
+        name: &str,
+        add_refs: Vec<String>,
+        remove_refs: Vec<String>,
+        description: Option<String>,
+    ) -> Result<(), RefstoreError> {
+        // Validate new refs exist before mutating
+        for ref_name in &add_refs {
+            if !self.index.references.contains_key(ref_name) {
+                return Err(RefstoreError::BundleInvalidReference {
+                    bundle: name.to_string(),
+                    reference: ref_name.clone(),
+                });
+            }
+        }
+
+        let bundle = self
+            .index
+            .bundles
+            .get_mut(name)
+            .ok_or_else(|| RefstoreError::BundleNotFound {
+                name: name.to_string(),
+            })?;
+
+        for ref_name in add_refs {
+            if !bundle.references.contains(&ref_name) {
+                bundle.references.push(ref_name);
+            }
+        }
+        bundle.references.retain(|r| !remove_refs.contains(r));
+
+        if let Some(desc) = description {
+            bundle.description = Some(desc);
+        }
+
         self.save_index()?;
         Ok(())
     }

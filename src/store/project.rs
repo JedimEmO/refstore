@@ -1,8 +1,10 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::RefstoreError;
 use crate::model::{Manifest, ManifestEntry};
+use crate::store::RepositoryStore;
 
 const MANIFEST_FILE: &str = "refstore.toml";
 
@@ -85,6 +87,59 @@ impl ProjectStore {
             })?;
         self.save_manifest()?;
         Ok(entry)
+    }
+
+    pub fn add_bundle(&mut self, name: String) -> Result<(), RefstoreError> {
+        if self.manifest.bundles.contains(&name) {
+            return Err(RefstoreError::BundleExists { name });
+        }
+        self.manifest.bundles.push(name);
+        self.save_manifest()?;
+        Ok(())
+    }
+
+    pub fn remove_bundle(&mut self, name: &str) -> Result<(), RefstoreError> {
+        let pos = self
+            .manifest
+            .bundles
+            .iter()
+            .position(|b| b == name)
+            .ok_or_else(|| RefstoreError::BundleNotFound {
+                name: name.to_string(),
+            })?;
+        self.manifest.bundles.remove(pos);
+        self.save_manifest()?;
+        Ok(())
+    }
+
+    /// Resolve all references for this project by expanding bundles and
+    /// overlaying explicit manifest entries. Explicit entries take precedence.
+    pub fn resolve_all_references(
+        &self,
+        repo: &RepositoryStore,
+    ) -> Result<BTreeMap<String, ManifestEntry>, RefstoreError> {
+        let mut resolved = BTreeMap::new();
+
+        // First, expand bundle references (lower precedence)
+        for bundle_name in &self.manifest.bundles {
+            let bundle = repo.get_bundle(bundle_name).ok_or_else(|| {
+                RefstoreError::BundleNotFound {
+                    name: bundle_name.clone(),
+                }
+            })?;
+            for ref_name in &bundle.references {
+                resolved
+                    .entry(ref_name.clone())
+                    .or_insert_with(ManifestEntry::default);
+            }
+        }
+
+        // Then, overlay explicit references (higher precedence)
+        for (name, entry) in &self.manifest.references {
+            resolved.insert(name.clone(), entry.clone());
+        }
+
+        Ok(resolved)
     }
 
     fn save_manifest(&self) -> Result<(), RefstoreError> {

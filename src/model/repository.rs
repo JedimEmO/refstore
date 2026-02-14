@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::bundle::Bundle;
 use super::reference::Reference;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -10,6 +11,8 @@ pub struct RepositoryIndex {
     pub version: u32,
     #[serde(default)]
     pub references: BTreeMap<String, Reference>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub bundles: BTreeMap<String, Bundle>,
 }
 
 fn default_version() -> u32 {

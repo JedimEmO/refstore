@@ -8,6 +8,7 @@ use crate::store::{ProjectStore, RepositoryStore};
 pub fn run(
     data_dir: Option<&PathBuf>,
     name: String,
+    is_bundle: bool,
     version: Option<String>,
     path: Option<PathBuf>,
     include: Vec<String>,
@@ -16,26 +17,39 @@ pub fn run(
     let repo = RepositoryStore::open(data_dir.map(|p| p.as_path()))
         .context("failed to open central repository")?;
 
-    if repo.get(&name).is_none() {
-        anyhow::bail!(
-            "reference '{name}' not found in central repository. Add it first with `refstore repo add`."
-        );
-    }
-
     let mut project = ProjectStore::open(None).context("failed to open project")?;
 
-    let entry = ManifestEntry {
-        path,
-        version,
-        include,
-        exclude,
-    };
+    if is_bundle {
+        if repo.get_bundle(&name).is_none() {
+            anyhow::bail!(
+                "bundle '{name}' not found in central repository. \
+                Create it first with `refstore repo bundle create`."
+            );
+        }
+        project
+            .add_bundle(name.clone())
+            .context("failed to add bundle to manifest")?;
+        println!("Added bundle '{name}' to project manifest.");
+    } else {
+        if repo.get(&name).is_none() {
+            anyhow::bail!(
+                "reference '{name}' not found in central repository. Add it first with `refstore repo add`."
+            );
+        }
 
-    project
-        .add_reference(name.clone(), entry)
-        .context("failed to add reference to manifest")?;
+        let entry = ManifestEntry {
+            path,
+            version,
+            include,
+            exclude,
+        };
 
-    println!("Added '{name}' to project manifest.");
+        project
+            .add_reference(name.clone(), entry)
+            .context("failed to add reference to manifest")?;
+        println!("Added '{name}' to project manifest.");
+    }
+
     println!("Run `refstore sync` to fetch the content.");
     Ok(())
 }

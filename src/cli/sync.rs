@@ -15,21 +15,19 @@ pub fn run(data_dir: Option<&PathBuf>, name: Option<String>, force: bool) -> Res
     std::fs::create_dir_all(&refs_dir)
         .with_context(|| format!("failed to create {}", refs_dir.display()))?;
 
+    // Resolve all references (explicit + bundle-expanded)
+    let resolved = project
+        .resolve_all_references(&repo)
+        .context("failed to resolve references")?;
+
     let entries: Vec<_> = match &name {
         Some(n) => {
-            let entry = project
-                .manifest()
-                .references
+            let entry = resolved
                 .get(n)
-                .ok_or_else(|| anyhow::anyhow!("reference '{n}' not in project manifest"))?;
+                .ok_or_else(|| anyhow::anyhow!("reference '{n}' not found in project manifest (including bundle-expanded references)"))?;
             vec![(n.as_str(), entry)]
         }
-        None => project
-            .manifest()
-            .references
-            .iter()
-            .map(|(k, v)| (k.as_str(), v))
-            .collect(),
+        None => resolved.iter().map(|(k, v)| (k.as_str(), v)).collect(),
     };
 
     if entries.is_empty() {

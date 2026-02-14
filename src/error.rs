@@ -56,4 +56,13 @@ pub enum RefstoreError {
 
     #[error("failed to serialize TOML: {0}")]
     TomlSerialize(#[from] toml::ser::Error),
+
+    #[error("bundle '{name}' not found in repository")]
+    BundleNotFound { name: String },
+
+    #[error("bundle '{name}' already exists in repository")]
+    BundleExists { name: String },
+
+    #[error("bundle '{bundle}' references unknown reference '{reference}'")]
+    BundleInvalidReference { bundle: String, reference: String },
 }

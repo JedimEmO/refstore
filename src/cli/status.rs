@@ -1,23 +1,62 @@
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 
-use crate::store::ProjectStore;
+use crate::store::{ProjectStore, RepositoryStore};
 
-pub fn run() -> Result<()> {
+pub fn run(data_dir: Option<&PathBuf>) -> Result<()> {
+    let repo = RepositoryStore::open(data_dir.map(|p| p.as_path()))
+        .context("failed to open central repository")?;
     let project = ProjectStore::open(None).context("failed to open project")?;
 
     let manifest = project.manifest();
     let refs_dir = project.references_dir();
 
-    if manifest.references.is_empty() {
-        println!("No references in manifest.");
-        return Ok(());
-    }
-
     println!("Project: {}", project.root().display());
     println!("References directory: {}", refs_dir.display());
     println!();
 
-    for (name, entry) in &manifest.references {
+    // Show bundles
+    if !manifest.bundles.is_empty() {
+        println!("Bundles:");
+        for bundle_name in &manifest.bundles {
+            match repo.get_bundle(bundle_name) {
+                Some(b) => {
+                    println!("  @{}: {} references", bundle_name, b.references.len());
+                }
+                None => {
+                    println!("  @{}: (not found in repository!)", bundle_name);
+                }
+            }
+        }
+        println!();
+    }
+
+    // Resolve all references (explicit + bundle-expanded)
+    let resolved = project
+        .resolve_all_references(&repo)
+        .context("failed to resolve references")?;
+
+    if resolved.is_empty() {
+        println!("No references in manifest.");
+        return Ok(());
+    }
+
+    // Build reverse lookup: ref_name -> bundle_name
+    let mut ref_to_bundle: BTreeMap<String, String> = BTreeMap::new();
+    for bundle_name in &manifest.bundles {
+        if let Some(b) = repo.get_bundle(bundle_name) {
+            for ref_name in &b.references {
+                ref_to_bundle
+                    .entry(ref_name.clone())
+                    .or_insert_with(|| bundle_name.clone());
+            }
+        }
+    }
+
+    println!("References:");
+    for (name, entry) in &resolved {
         let target_dir = match &entry.path {
             Some(p) => refs_dir.join(p),
             None => refs_dir.join(name),
@@ -42,7 +81,15 @@ pub fn run() -> Result<()> {
             .map(|v| format!(" @ {v}"))
             .unwrap_or_default();
 
-        println!("  {name}{version_info}: {status}");
+        let source = if manifest.references.contains_key(name) {
+            String::new()
+        } else if let Some(bundle_name) = ref_to_bundle.get(name) {
+            format!(" (via bundle: {bundle_name})")
+        } else {
+            String::new()
+        };
+
+        println!("  {name}{version_info}{source}: {status}");
     }
     Ok(())
 }
