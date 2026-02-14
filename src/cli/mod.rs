@@ -1,9 +1,11 @@
 pub mod add;
 pub mod config;
 pub mod init;
+pub mod install_mcp;
 pub mod mcp;
 pub mod remove;
 pub mod repo;
+pub mod self_ref;
 pub mod status;
 pub mod sync;
 
@@ -42,6 +44,14 @@ pub enum Command {
         /// Path to initialize (default: current directory)
         #[arg(short, long)]
         path: Option<PathBuf>,
+
+        /// Skip the refstore self-reference prompt
+        #[arg(long)]
+        no_self_ref: bool,
+
+        /// Automatically add the refstore self-reference without prompting
+        #[arg(long, conflicts_with = "no_self_ref")]
+        self_ref: bool,
     },
 
     /// Add a reference to the project manifest
@@ -95,6 +105,17 @@ pub enum Command {
 
     /// Start the MCP server (stdio transport)
     Mcp,
+
+    /// Register refstore as an MCP server in .mcp.json
+    InstallMcp {
+        /// Server name in .mcp.json (default: refstore)
+        #[arg(long, default_value = "refstore")]
+        name: String,
+
+        /// Target directory (default: current directory)
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+    },
 
     /// Manage global configuration
     #[command(subcommand)]

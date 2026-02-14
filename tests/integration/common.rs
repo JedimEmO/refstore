@@ -82,10 +82,10 @@ impl TestEnv {
         cmd.assert().success();
     }
 
-    /// Shorthand: init project in project_dir.
+    /// Shorthand: init project in project_dir (skips self-ref prompt).
     pub fn init_project(&self) {
         self.cmd()
-            .args(["init", "--path"])
+            .args(["init", "--no-self-ref", "--path"])
             .arg(self.project_dir.path())
             .assert()
             .success();

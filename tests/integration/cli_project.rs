@@ -8,7 +8,7 @@ fn init_creates_manifest() {
     let env = TestEnv::new();
 
     env.cmd()
-        .args(["init", "--path"])
+        .args(["init", "--no-self-ref", "--path"])
         .arg(env.project_dir.path())
         .assert()
         .success()
@@ -38,7 +38,7 @@ fn init_commit_references() {
     let env = TestEnv::new();
 
     env.cmd()
-        .args(["init", "--path"])
+        .args(["init", "--no-self-ref", "--path"])
         .arg(env.project_dir.path())
         .arg("--commit-references")
         .assert()
@@ -63,7 +63,7 @@ fn init_twice_fails() {
     env.init_project();
 
     env.cmd()
-        .args(["init", "--path"])
+        .args(["init", "--no-self-ref", "--path"])
         .arg(env.project_dir.path())
         .assert()
         .failure();
@@ -101,6 +101,126 @@ fn add_unknown_reference_fails() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("not found"));
+}
+
+#[test]
+fn init_self_ref_creates_agents_md_when_none_exist() {
+    let env = TestEnv::new();
+
+    env.cmd()
+        .args(["init", "--self-ref", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("added refstore instructions to AGENTS.md"));
+
+    let agents_md = env.project_dir.path().join("AGENTS.md");
+    assert!(agents_md.exists());
+    let content = fs::read_to_string(&agents_md).unwrap();
+    assert!(content.contains("refstore"));
+    assert!(content.contains(".references/"));
+    assert!(!env.project_dir.path().join("CLAUDE.md").exists());
+}
+
+#[test]
+fn init_self_ref_appends_to_existing_claude_md() {
+    let env = TestEnv::new();
+
+    fs::write(
+        env.project_dir.path().join("CLAUDE.md"),
+        "# My Project\n\nExisting instructions.\n",
+    )
+    .unwrap();
+
+    env.cmd()
+        .args(["init", "--self-ref", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("CLAUDE.md"));
+
+    let content = fs::read_to_string(env.project_dir.path().join("CLAUDE.md")).unwrap();
+    assert!(content.starts_with("# My Project"), "existing content preserved");
+    assert!(content.contains("<!-- refstore -->"), "refstore section appended");
+}
+
+#[test]
+fn init_self_ref_appends_to_existing_agents_md() {
+    let env = TestEnv::new();
+
+    fs::write(
+        env.project_dir.path().join("AGENTS.md"),
+        "# Agent Config\n",
+    )
+    .unwrap();
+
+    env.cmd()
+        .args(["init", "--self-ref", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("AGENTS.md"));
+
+    let content = fs::read_to_string(env.project_dir.path().join("AGENTS.md")).unwrap();
+    assert!(content.starts_with("# Agent Config"), "existing content preserved");
+    assert!(content.contains("<!-- refstore -->"), "refstore section appended");
+}
+
+#[test]
+fn init_self_ref_appends_to_both_when_both_exist() {
+    let env = TestEnv::new();
+
+    fs::write(env.project_dir.path().join("CLAUDE.md"), "# Claude\n").unwrap();
+    fs::write(env.project_dir.path().join("AGENTS.md"), "# Agents\n").unwrap();
+
+    env.cmd()
+        .args(["init", "--self-ref", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("CLAUDE.md"))
+        .stdout(predicate::str::contains("AGENTS.md"));
+
+    let claude = fs::read_to_string(env.project_dir.path().join("CLAUDE.md")).unwrap();
+    let agents = fs::read_to_string(env.project_dir.path().join("AGENTS.md")).unwrap();
+    assert!(claude.contains("<!-- refstore -->"));
+    assert!(agents.contains("<!-- refstore -->"));
+}
+
+#[test]
+fn init_self_ref_idempotent() {
+    let env = TestEnv::new();
+
+    fs::write(env.project_dir.path().join("CLAUDE.md"), "# Project\n").unwrap();
+
+    env.cmd()
+        .args(["init", "--self-ref", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success();
+
+    let content = fs::read_to_string(env.project_dir.path().join("CLAUDE.md")).unwrap();
+    assert_eq!(
+        content.matches("<!-- refstore -->").count(),
+        1,
+        "marker should appear exactly once"
+    );
+}
+
+#[test]
+fn init_no_self_ref_skips() {
+    let env = TestEnv::new();
+
+    env.cmd()
+        .args(["init", "--no-self-ref", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("CLAUDE.md").not())
+        .stdout(predicate::str::contains("AGENTS.md").not());
+
+    assert!(!env.project_dir.path().join("CLAUDE.md").exists());
+    assert!(!env.project_dir.path().join("AGENTS.md").exists());
 }
 
 #[test]
@@ -256,6 +376,76 @@ fn status_shows_not_synced() {
         .assert()
         .success()
         .stdout(predicate::str::contains("not synced"));
+}
+
+#[test]
+fn install_mcp_creates_file() {
+    let env = TestEnv::new();
+
+    env.cmd()
+        .args(["install-mcp", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Added 'refstore'"));
+
+    let mcp_path = env.project_dir.path().join(".mcp.json");
+    assert!(mcp_path.exists());
+
+    let content: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&mcp_path).unwrap()).unwrap();
+    let servers = content["mcpServers"].as_object().unwrap();
+    assert!(servers.contains_key("refstore"));
+    assert_eq!(servers["refstore"]["args"][0], "mcp");
+}
+
+#[test]
+fn install_mcp_merges_existing() {
+    let env = TestEnv::new();
+
+    // Pre-create .mcp.json with another server
+    let mcp_path = env.project_dir.path().join(".mcp.json");
+    fs::write(
+        &mcp_path,
+        r#"{"mcpServers": {"other": {"command": "other-bin", "args": ["serve"]}}}"#,
+    )
+    .unwrap();
+
+    env.cmd()
+        .args(["install-mcp", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Added 'refstore'"));
+
+    let content: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&mcp_path).unwrap()).unwrap();
+    let servers = content["mcpServers"].as_object().unwrap();
+    assert!(servers.contains_key("refstore"), "refstore should be added");
+    assert!(
+        servers.contains_key("other"),
+        "existing server should be preserved"
+    );
+}
+
+#[test]
+fn install_mcp_already_configured() {
+    let env = TestEnv::new();
+
+    // Install once
+    env.cmd()
+        .args(["install-mcp", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success();
+
+    // Install again — should not duplicate
+    env.cmd()
+        .args(["install-mcp", "--path"])
+        .arg(env.project_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("already configured"));
 }
 
 #[test]

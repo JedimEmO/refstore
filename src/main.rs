@@ -34,7 +34,9 @@ async fn main() -> Result<()> {
         cli::Command::Init {
             commit_references,
             path,
-        } => cli::init::run(path, commit_references),
+            self_ref,
+            no_self_ref,
+        } => cli::init::run(path, commit_references, self_ref, no_self_ref),
         cli::Command::Add {
             name,
             pin,
@@ -49,6 +51,7 @@ async fn main() -> Result<()> {
         cli::Command::Status => cli::status::run(),
         cli::Command::Repo(cmd) => cli::repo::run(cli.data_dir.as_ref(), cmd),
         cli::Command::Mcp => cli::mcp::run(cli.data_dir).await,
+        cli::Command::InstallMcp { name, path } => cli::install_mcp::run(name, path),
         cli::Command::Config(cmd) => cli::config::run(cli.data_dir.as_ref(), cmd),
     }
 }
