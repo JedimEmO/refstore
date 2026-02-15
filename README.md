@@ -8,11 +8,12 @@ Manage a central repository of reference material — documentation, example cod
 
 LLM coding agents work better with reference material: API docs, coding conventions, example implementations. But managing these across many projects is tedious. refstore solves this:
 
-- **Central repository** — add references once (local files, directories, or git repos), reuse everywhere.
+- **Central store** — add references once (local files, directories, or git repos), reuse everywhere.
 - **Per-project manifests** — each project declares which references it needs in `refstore.toml`.
 - **Selective sync** — include/exclude globs to pull only what's relevant.
 - **Bundles** — group related references together (e.g., "rust-stack") and add them to projects in one step.
 - **Remote registries** — share references across machines and teams via git. Pull community or company registries as submodules.
+- **Registry authoring** — create and publish your own registries for others to consume.
 - **Version pinning** — pin references to specific registry tags or commits for reproducible builds.
 - **MCP server** — expose references to agents via Model Context Protocol, with configurable read/write scope.
 
@@ -27,22 +28,23 @@ Requires Rust 1.85+ and git.
 ## Quick start
 
 ```bash
-# Add a reference to the central repository
-refstore repo add rust-guidelines ~/docs/rust-guidelines --tag rust --description "Team Rust conventions"
-refstore repo add api-examples https://github.com/org/api-examples.git --ref main --tag api
+# Add a reference to the local store
+refstore store add rust-guidelines ~/docs/rust-guidelines --tag rust --description "Team Rust conventions"
+refstore store add api-examples https://github.com/org/api-examples.git --ref main --tag api
 
 # Initialize refstore in a project
 cd my-project
 refstore init
 
-# Add references to the project
-refstore add rust-guidelines
+# Add references to the project and sync
+refstore add rust-guidelines --sync
 refstore add api-examples --include "**/*.rs" --exclude "**/tests/*"
-
-# Sync content into .references/
 refstore sync
 
-# Check status
+# Discover and search
+refstore list
+refstore search "authentication"
+refstore info rust-guidelines
 refstore status
 ```
 
@@ -60,23 +62,35 @@ After syncing, `my-project/.references/` contains:
 
 ## CLI reference
 
-### Central repository
+### Discovery
 
 ```bash
-refstore repo add <name> <source>    # Add a reference (file, dir, or git URL)
+refstore list                        # List all references across registries
+  --tag <tag>                        #   Filter by tag
+  --kind <file|directory|git_repo>   #   Filter by kind
+
+refstore search <query>              # Search content across references
+  --ref <name>                       #   Limit to a specific reference
+
+refstore info <name>                 # Show details (works for references and bundles)
+refstore versions <name>             # Show version history for a reference
+```
+
+### Local store
+
+```bash
+refstore store add <name> <source>   # Add a reference (file, dir, or git URL)
   --description "..."                #   Human-readable description
   --tag <tag>                        #   Tags for filtering (repeatable)
   --ref <branch|tag|commit>          #   Git ref to checkout
   --subpath <path>                   #   Subdirectory within a git repo
 
-refstore repo list                   # List all references
-  --tag <tag>                        #   Filter by tag
-  --kind <file|directory|git_repo>   #   Filter by kind
-
-refstore repo info <name>            # Show reference details
-refstore repo update [name]          # Re-fetch content from source (all if omitted)
-refstore repo remove <name>          # Remove a reference
+refstore store update [name]         # Re-fetch content from source (all if omitted)
+refstore store remove <name>         # Remove a reference
   --force                            #   Skip confirmation prompt
+
+refstore store push <name>           # Copy a reference to another registry
+  --to <path>                        #   Path to the target registry
 ```
 
 ### Bundles
@@ -84,20 +98,20 @@ refstore repo remove <name>          # Remove a reference
 Group references together for easy reuse across projects:
 
 ```bash
-refstore repo bundle create <name> --ref <ref1> --ref <ref2>
+refstore bundle create <name> --ref <ref1> --ref <ref2>
   --description "..."                #   Human-readable description
   --tag <tag>                        #   Tags for filtering (repeatable)
 
-refstore repo bundle list            # List all bundles
+refstore bundle list                 # List all bundles
   --tag <tag>                        #   Filter by tag
 
-refstore repo bundle info <name>     # Show bundle details
-refstore repo bundle update <name>   # Modify a bundle
+refstore bundle info <name>          # Show bundle details
+refstore bundle update <name>        # Modify a bundle
   --add-ref <ref>                    #   Add references (repeatable)
   --remove-ref <ref>                 #   Remove references (repeatable)
   --description "..."                #   Update description
 
-refstore repo bundle remove <name>   # Remove a bundle
+refstore bundle remove <name>        # Remove a bundle
   --force                            #   Skip confirmation prompt
 ```
 
@@ -113,24 +127,56 @@ refstore sync
 Share references across machines and teams. Remote registries are git repos added as submodules to your local registry:
 
 ```bash
-refstore registry add <name> <git-url>   # Add a remote registry
-refstore registry list                   # List all registries (local + remote)
-refstore registry update [name]          # Pull latest from remote (all if omitted)
-refstore registry remove <name>          # Remove a remote registry
-  --force                                #   Skip confirmation prompt
+refstore registry list               # List all registries (local + remote)
+refstore registry add <name> <url>   # Add a remote registry
+refstore registry update [name]      # Pull latest from remote (all if omitted)
+refstore registry remove <name>      # Remove a remote registry
+  --force                            #   Skip confirmation prompt
 ```
 
-References from remote registries appear in `repo list` and can be added to projects just like local references. When names conflict, local references take precedence.
+References from remote registries appear in `refstore list` and can be added to projects just like local references. When names conflict, local references take precedence.
+
+### Registry authoring
+
+Create and publish your own registries for others to consume:
+
+```bash
+# Create a new registry
+refstore registry init /path/to/my-registry
+
+# Push references from your local store into it
+refstore store push rust-guidelines --to /path/to/my-registry
+refstore store push api-examples --to /path/to/my-registry
+
+# Or add content directly using --data-dir
+refstore --data-dir /path/to/my-registry store add react-docs ./react-docs/
+
+# Create bundles in it
+refstore --data-dir /path/to/my-registry bundle create frontend-stack --ref react-docs
+
+# Publish: push the registry to a git remote
+cd /path/to/my-registry
+git remote add origin git@github.com:team/registry.git
+git push -u origin main
+```
+
+Others can then consume the registry:
+
+```bash
+refstore registry add team git@github.com:team/registry.git
+refstore list                        # team's references are now visible
+refstore add react-docs --sync       # sync from the team registry
+```
 
 ### Versioning
 
-The local registry is a git repo. Every `repo add`, `repo update`, and `repo remove` creates a commit. You can tag states and pin projects to specific versions:
+The local registry is a git repo. Every `store add`, `store update`, and `store remove` creates a commit. You can tag states and pin projects to specific versions:
 
 ```bash
-refstore repo tag <name>             # Tag the current registry state
+refstore store tag <name>            # Tag the current registry state
   -m "..."                           #   Optional tag message (annotated tag)
 
-refstore repo tags                   # List all tags
+refstore store tags                  # List all tags
 
 refstore versions <name>             # Show version history for a reference
 ```
@@ -155,6 +201,7 @@ refstore add <name>                  # Add a reference to the project manifest
   --exclude <glob>                   #   Skip matching files (repeatable)
   --pin <rev>                        #   Pin to a registry tag or commit
   --path <override>                  #   Custom path within .references/
+  --sync                             #   Sync content immediately after adding
 
 refstore remove <name>               # Remove from manifest
   --bundle                           #   Remove a bundle
@@ -237,7 +284,7 @@ The central repository lives at `~/.local/share/refstore/` (or `$XDG_DATA_HOME/r
 
 ```bash
 cargo build
-cargo test          # 80 integration tests
+cargo test          # 88 integration tests
 ```
 
 ## License

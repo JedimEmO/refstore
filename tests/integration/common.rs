@@ -58,7 +58,7 @@ impl TestEnv {
     /// Shorthand: add a local directory reference to the central repo.
     pub fn add_repo_ref(&self, name: &str, source: &Path) {
         self.cmd()
-            .args(["repo", "add", name])
+            .args(["store", "add", name])
             .arg(source)
             .assert()
             .success();
@@ -73,7 +73,7 @@ impl TestEnv {
         tags: &[&str],
     ) {
         let mut cmd = self.cmd();
-        cmd.args(["repo", "add", name]);
+        cmd.args(["store", "add", name]);
         cmd.arg(source);
         cmd.args(["--description", description]);
         for tag in tags {
@@ -85,7 +85,7 @@ impl TestEnv {
     /// Shorthand: create a bundle in the central repo from existing references.
     pub fn create_bundle(&self, name: &str, refs: &[&str]) {
         let mut cmd = self.cmd();
-        cmd.args(["repo", "bundle", "create", name]);
+        cmd.args(["bundle", "create", name]);
         for r in refs {
             cmd.args(["--ref", r]);
         }

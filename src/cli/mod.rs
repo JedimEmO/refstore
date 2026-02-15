@@ -1,14 +1,17 @@
 pub mod add;
 pub mod bundle;
 pub mod config;
+pub mod info;
 pub mod init;
 pub mod install_mcp;
+pub mod list;
 pub mod mcp;
 pub mod registry;
 pub mod remove;
-pub mod repo;
+pub mod search;
 pub mod self_ref;
 pub mod status;
+pub mod store;
 pub mod sync;
 pub mod versions;
 
@@ -81,6 +84,10 @@ pub enum Command {
         /// Exclude files matching these globs
         #[arg(long)]
         exclude: Vec<String>,
+
+        /// Sync content immediately after adding
+        #[arg(long)]
+        sync: bool,
     },
 
     /// Remove a reference or bundle from the project manifest
@@ -110,9 +117,50 @@ pub enum Command {
     /// Show sync status of project references
     Status,
 
-    /// Manage the central reference repository
+    /// List all available references across registries
+    List {
+        /// Filter by tag
+        #[arg(short, long)]
+        tag: Option<String>,
+
+        /// Filter by kind (file, directory, git_repo)
+        #[arg(short, long)]
+        kind: Option<String>,
+    },
+
+    /// Search content across references
+    Search {
+        /// Text to search for (case-insensitive)
+        query: String,
+
+        /// Limit search to a specific reference
+        #[arg(long = "ref")]
+        reference: Option<String>,
+    },
+
+    /// Show detailed information about a reference or bundle
+    Info {
+        /// Name of the reference or bundle
+        name: String,
+    },
+
+    /// Show version history for a reference
+    Versions {
+        /// Name of the reference
+        name: String,
+    },
+
+    /// Manage the local reference store
     #[command(subcommand)]
-    Repo(RepoSubcommand),
+    Store(StoreSubcommand),
+
+    /// Manage bundles (named groups of references)
+    #[command(subcommand)]
+    Bundle(BundleSubcommand),
+
+    /// Manage registries (local and remote)
+    #[command(subcommand)]
+    Registry(RegistrySubcommand),
 
     /// Start the MCP server (stdio transport)
     Mcp,
@@ -128,24 +176,14 @@ pub enum Command {
         path: Option<PathBuf>,
     },
 
-    /// Manage remote registries
-    #[command(subcommand)]
-    Registry(RegistrySubcommand),
-
-    /// Show version history for a reference
-    Versions {
-        /// Name of the reference
-        name: String,
-    },
-
     /// Manage global configuration
     #[command(subcommand)]
     Config(ConfigSubcommand),
 }
 
 #[derive(Debug, Subcommand)]
-pub enum RepoSubcommand {
-    /// Add a reference to the central repository
+pub enum StoreSubcommand {
+    /// Add a reference to the local store
     Add {
         /// Unique name for this reference
         name: String,
@@ -170,18 +208,7 @@ pub enum RepoSubcommand {
         subpath: Option<PathBuf>,
     },
 
-    /// List all references in the central repository
-    List {
-        /// Filter by tag
-        #[arg(short, long)]
-        tag: Option<String>,
-
-        /// Filter by kind (file, directory, git_repo)
-        #[arg(short, long)]
-        kind: Option<String>,
-    },
-
-    /// Remove a reference from the central repository
+    /// Remove a reference from the local store
     Remove {
         /// Name of the reference to remove
         name: String,
@@ -197,12 +224,6 @@ pub enum RepoSubcommand {
         name: Option<String>,
     },
 
-    /// Show detailed information about a reference
-    Info {
-        /// Name of the reference
-        name: String,
-    },
-
     /// Tag the current state of the registry for version pinning
     Tag {
         /// Tag name (e.g., "v1.0")
@@ -216,9 +237,15 @@ pub enum RepoSubcommand {
     /// List tags on the registry
     Tags,
 
-    /// Manage bundles (named groups of references)
-    #[command(subcommand)]
-    Bundle(BundleSubcommand),
+    /// Push a reference from the local store to another registry
+    Push {
+        /// Name of the reference to push
+        name: String,
+
+        /// Path to the target registry
+        #[arg(long)]
+        to: PathBuf,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -285,6 +312,9 @@ pub enum BundleSubcommand {
 
 #[derive(Debug, Subcommand)]
 pub enum RegistrySubcommand {
+    /// List all configured registries
+    List,
+
     /// Add a remote registry
     Add {
         /// Unique name for this registry
@@ -292,6 +322,7 @@ pub enum RegistrySubcommand {
         /// Git URL of the registry repository
         url: String,
     },
+
     /// Remove a remote registry
     Remove {
         /// Name of the registry to remove
@@ -300,12 +331,17 @@ pub enum RegistrySubcommand {
         #[arg(short, long)]
         force: bool,
     },
-    /// List all configured registries
-    List,
+
     /// Update registry definitions (git pull)
     Update {
         /// Specific registry to update (omit for all)
         name: Option<String>,
+    },
+
+    /// Initialize a new registry at the given path
+    Init {
+        /// Path to create the registry at
+        path: PathBuf,
     },
 }
 

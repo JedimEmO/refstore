@@ -17,8 +17,8 @@ References can be added individually or via **bundles** (named groups of referen
 central repository, e.g. a tech stack or project template). Bundles are listed under `bundles = [...]` \
 in `refstore.toml` and expanded at sync time.
 
-Commands: `refstore status`, `refstore sync`, `refstore repo list`, `refstore add <name>`, \
-`refstore add --bundle <name>`, `refstore remove <name> --purge`
+Commands: `refstore status`, `refstore sync`, `refstore list`, `refstore search <query>`, \
+`refstore add <name>`, `refstore add --bundle <name>`, `refstore remove <name> --purge`
 
 MCP tools: `list_references`, `get_reference`, `read_reference_file`, `list_reference_files`, \
 `search_references`, `list_bundles`, `get_bundle`

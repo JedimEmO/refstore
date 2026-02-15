@@ -65,6 +65,9 @@ pub struct GetBundleParams {
     pub name: String,
 }
 
+#[derive(Debug, Clone, serde::Deserialize, JsonSchema)]
+pub struct GetTutorialParams {}
+
 // Server struct
 
 pub struct RefstoreMcpServer {
@@ -87,6 +90,73 @@ impl RefstoreMcpServer {
             project,
             tool_router: Self::tool_router(),
         }
+    }
+
+    #[tool(description = "Get a tutorial explaining common refstore usage patterns and workflows")]
+    async fn get_tutorial(
+        &self,
+        rmcp::handler::server::wrapper::Parameters(_params): rmcp::handler::server::wrapper::Parameters<GetTutorialParams>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let tutorial = "\
+# refstore Tutorial — Common Usage Patterns
+
+## What is refstore?
+refstore manages reference documentation for LLM coding agents. References are
+curated docs (API guides, style guides, framework docs) stored in a central
+repository and synced into projects via `.references/` directories.
+
+## Quick Start Workflow
+
+### 1. Discover available references
+Use `list_references` to see all references in the repository.
+Use `list_references` with a `tag` to filter (e.g. tag=\"rust\").
+
+### 2. Explore a reference
+Use `get_reference` with the name to see its description, kind, and tags.
+Use `list_reference_files` to browse its file tree.
+Use `read_reference_file` to read specific files.
+
+### 3. Search across references
+Use `search_references` with a query string to find content across all
+references. Optionally pass `reference` to limit to one reference.
+
+### 4. Add a reference to the current project
+Use `add_to_project` with the reference name. This updates the project's
+`refstore.toml` manifest. The user then runs `refstore sync` in their
+terminal to download the content into `.references/`.
+
+Note: `add_to_project` requires write permissions. If it fails with a
+scope error, the MCP server was started in read-only mode.
+
+## Bundles
+Bundles are named groups of references (e.g. a tech stack).
+Use `list_bundles` to see available bundles.
+Use `get_bundle` to see which references a bundle contains.
+Bundles cannot be added via MCP — the user adds them with:
+  `refstore add --bundle <name>` then `refstore sync`
+
+## Key Concepts
+- **Central repository**: ~/.local/share/refstore/ — stores all reference content
+- **Project manifest**: refstore.toml in the project root — lists which refs to sync
+- **Synced content**: .references/<name>/ — read these files for project context
+- **Registries**: local registry is searched first, then remote registries alphabetically
+
+## Useful CLI Commands
+- `refstore list` — list all available references
+- `refstore search <query>` — search content across references
+- `refstore info <name>` — show details about a reference or bundle
+- `refstore add <name> --sync` — add to project and sync immediately
+- `refstore store add <name> <source>` — add content to the local store
+- `refstore bundle create <name> --ref ...` — create a bundle
+- `refstore registry init <path>` — create a new shareable registry
+
+## Tips
+- Always `list_references` first to discover what's available
+- Read files in `.references/` for already-synced project context
+- After `add_to_project`, remind the user to run `refstore sync`
+- Use `search_references` to find specific APIs or patterns across all docs
+";
+        Ok(CallToolResult::success(vec![Content::text(tutorial)]))
     }
 
     #[tool(description = "List all available references in the refstore repository")]
@@ -415,6 +485,7 @@ impl ServerHandler for RefstoreMcpServer {
         ServerInfo {
             instructions: Some(
                 "Reference documentation manager for LLM coding agents. \
+                 Call get_tutorial for usage patterns and workflows. \
                  Use list_references to discover available references, \
                  get_reference for details, read_reference_file to read content, \
                  and search_references to find relevant documentation."

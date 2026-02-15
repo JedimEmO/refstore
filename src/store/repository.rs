@@ -498,6 +498,46 @@ impl RepositoryStore {
         git::create_tag(&self.root, tag, message)
     }
 
+    // --- Push to another registry ---
+
+    /// Copy a reference from the local registry to another registry at the given path.
+    pub fn push_to(&self, name: &str, target_path: &Path) -> Result<(), RefstoreError> {
+        let reference = self
+            .local
+            .get(name)
+            .ok_or_else(|| RefstoreError::ReferenceNotFound {
+                name: name.to_string(),
+            })?
+            .clone();
+
+        let source_content = self.local.content_path(name);
+        if !source_content.exists() {
+            return Err(RefstoreError::SyncFailed {
+                name: name.to_string(),
+                reason: "no cached content for this reference".to_string(),
+            });
+        }
+
+        let mut target = RegistryStore::open(target_path)?;
+
+        if target.get(name).is_some() {
+            return Err(RefstoreError::ReferenceExists {
+                name: name.to_string(),
+            });
+        }
+
+        let target_content = target.content_path(name);
+        copy_dir_recursive(&source_content, &target_content)?;
+
+        target.index_mut().references.insert(reference.name.clone(), reference);
+        target.save_index()?;
+
+        let content_rel = format!("content/{name}");
+        git::commit(target_path, &[&content_rel, "index.toml"], &format!("Add reference: {name}"))?;
+
+        Ok(())
+    }
+
     // --- Content fetching ---
 
     fn fetch_content(

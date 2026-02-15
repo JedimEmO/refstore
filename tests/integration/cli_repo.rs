@@ -9,7 +9,7 @@ fn repo_add_local_dir() {
     let sample = env.create_sample_files();
 
     env.cmd()
-        .args(["repo", "add", "my-ref"])
+        .args(["store", "add", "my-ref"])
         .arg(&sample)
         .assert()
         .success()
@@ -34,7 +34,7 @@ fn repo_add_local_file() {
     let file = env.create_sample_file();
 
     env.cmd()
-        .args(["repo", "add", "single-file"])
+        .args(["store", "add", "single-file"])
         .arg(&file)
         .assert()
         .success()
@@ -50,7 +50,7 @@ fn repo_add_with_tags() {
     let sample = env.create_sample_files();
 
     env.cmd()
-        .args(["repo", "add", "tagged-ref"])
+        .args(["store", "add", "tagged-ref"])
         .arg(&sample)
         .args(["--tag", "rust", "--tag", "example"])
         .assert()
@@ -58,7 +58,7 @@ fn repo_add_with_tags() {
 
     // Tags should appear in list output
     env.cmd()
-        .args(["repo", "list"])
+        .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("rust"))
@@ -71,14 +71,14 @@ fn repo_add_with_description() {
     let sample = env.create_sample_files();
 
     env.cmd()
-        .args(["repo", "add", "described-ref"])
+        .args(["store", "add", "described-ref"])
         .arg(&sample)
         .args(["--description", "A useful reference"])
         .assert()
         .success();
 
     env.cmd()
-        .args(["repo", "info", "described-ref"])
+        .args(["info", "described-ref"])
         .assert()
         .success()
         .stdout(predicate::str::contains("A useful reference"));
@@ -92,7 +92,7 @@ fn repo_add_duplicate_fails() {
     env.add_repo_ref("dup-ref", &sample);
 
     env.cmd()
-        .args(["repo", "add", "dup-ref"])
+        .args(["store", "add", "dup-ref"])
         .arg(&sample)
         .assert()
         .failure();
@@ -104,7 +104,7 @@ fn repo_add_invalid_name() {
     let sample = env.create_sample_files();
 
     env.cmd()
-        .args(["repo", "add", "invalid name!"])
+        .args(["store", "add", "invalid name!"])
         .arg(&sample)
         .assert()
         .failure();
@@ -115,7 +115,7 @@ fn repo_list_empty() {
     let env = TestEnv::new();
 
     env.cmd()
-        .args(["repo", "list"])
+        .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No references"));
@@ -130,7 +130,7 @@ fn repo_list_filter_by_tag() {
     env.add_repo_ref_with_meta("ref-b", &sample, "Second", &["python"]);
 
     env.cmd()
-        .args(["repo", "list", "--tag", "rust"])
+        .args(["list", "--tag", "rust"])
         .assert()
         .success()
         .stdout(predicate::str::contains("ref-a"))
@@ -147,7 +147,7 @@ fn repo_list_filter_by_kind() {
     env.add_repo_ref("file-ref", &sample_file);
 
     env.cmd()
-        .args(["repo", "list", "--kind", "file"])
+        .args(["list", "--kind", "file"])
         .assert()
         .success()
         .stdout(predicate::str::contains("file-ref"))
@@ -162,7 +162,7 @@ fn repo_info_shows_details() {
     env.add_repo_ref_with_meta("detailed-ref", &sample, "Detailed desc", &["tag1"]);
 
     env.cmd()
-        .args(["repo", "info", "detailed-ref"])
+        .args(["info", "detailed-ref"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Name:"))
@@ -177,7 +177,7 @@ fn repo_info_not_found() {
     let env = TestEnv::new();
 
     env.cmd()
-        .args(["repo", "info", "nonexistent"])
+        .args(["info", "nonexistent"])
         .assert()
         .failure();
 }
@@ -190,14 +190,14 @@ fn repo_remove_force() {
     env.add_repo_ref("to-remove", &sample);
 
     env.cmd()
-        .args(["repo", "remove", "--force", "to-remove"])
+        .args(["store", "remove", "--force", "to-remove"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Removed 'to-remove'"));
 
     // Should no longer appear in list
     env.cmd()
-        .args(["repo", "list"])
+        .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No references"));
@@ -212,7 +212,7 @@ fn repo_remove_not_found() {
     let env = TestEnv::new();
 
     env.cmd()
-        .args(["repo", "remove", "--force", "ghost"])
+        .args(["store", "remove", "--force", "ghost"])
         .assert()
         .failure();
 }
@@ -228,7 +228,7 @@ fn repo_update_refetches() {
     fs::write(sample.join("README.md"), "# Updated\n").unwrap();
 
     env.cmd()
-        .args(["repo", "update", "updatable"])
+        .args(["store", "update", "updatable"])
         .assert()
         .success()
         .stdout(predicate::str::contains("done"));

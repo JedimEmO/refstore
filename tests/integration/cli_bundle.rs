@@ -12,14 +12,14 @@ fn bundle_create() {
     env.add_repo_ref("ref-b", &sample);
 
     env.cmd()
-        .args(["repo", "bundle", "create", "my-stack", "--ref", "ref-a", "--ref", "ref-b"])
+        .args(["bundle", "create", "my-stack", "--ref", "ref-a", "--ref", "ref-b"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Created bundle 'my-stack'"));
 
     // Verify it shows in list
     env.cmd()
-        .args(["repo", "bundle", "list"])
+        .args(["bundle", "list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("my-stack"))
@@ -35,7 +35,7 @@ fn bundle_create_duplicate_fails() {
     env.create_bundle("dupe-bundle", &["ref-a"]);
 
     env.cmd()
-        .args(["repo", "bundle", "create", "dupe-bundle", "--ref", "ref-a"])
+        .args(["bundle", "create", "dupe-bundle", "--ref", "ref-a"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("already exists"));
@@ -46,7 +46,7 @@ fn bundle_create_invalid_ref_fails() {
     let env = TestEnv::new();
 
     env.cmd()
-        .args(["repo", "bundle", "create", "bad-bundle", "--ref", "nonexistent"])
+        .args(["bundle", "create", "bad-bundle", "--ref", "nonexistent"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("unknown reference"));
@@ -57,7 +57,7 @@ fn bundle_list_empty() {
     let env = TestEnv::new();
 
     env.cmd()
-        .args(["repo", "bundle", "list"])
+        .args(["bundle", "list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No bundles"));
@@ -73,7 +73,7 @@ fn bundle_list_with_tag_filter() {
 
     env.cmd()
         .args([
-            "repo", "bundle", "create", "tagged-bundle",
+            "bundle", "create", "tagged-bundle",
             "--ref", "ref-a",
             "--tag", "rust",
         ])
@@ -82,14 +82,14 @@ fn bundle_list_with_tag_filter() {
 
     env.cmd()
         .args([
-            "repo", "bundle", "create", "untagged-bundle",
+            "bundle", "create", "untagged-bundle",
             "--ref", "ref-b",
         ])
         .assert()
         .success();
 
     env.cmd()
-        .args(["repo", "bundle", "list", "--tag", "rust"])
+        .args(["bundle", "list", "--tag", "rust"])
         .assert()
         .success()
         .stdout(predicate::str::contains("tagged-bundle"))
@@ -106,7 +106,7 @@ fn bundle_info() {
 
     env.cmd()
         .args([
-            "repo", "bundle", "create", "info-bundle",
+            "bundle", "create", "info-bundle",
             "--ref", "ref-a", "--ref", "ref-b",
             "--description", "Test bundle",
         ])
@@ -114,7 +114,7 @@ fn bundle_info() {
         .success();
 
     env.cmd()
-        .args(["repo", "bundle", "info", "info-bundle"])
+        .args(["bundle", "info", "info-bundle"])
         .assert()
         .success()
         .stdout(predicate::str::contains("info-bundle"))
@@ -137,7 +137,7 @@ fn bundle_update_add_remove_refs() {
     // Add ref-c, remove ref-a
     env.cmd()
         .args([
-            "repo", "bundle", "update", "update-bundle",
+            "bundle", "update", "update-bundle",
             "--add-ref", "ref-c",
             "--remove-ref", "ref-a",
         ])
@@ -147,7 +147,7 @@ fn bundle_update_add_remove_refs() {
 
     // Verify: should have ref-b and ref-c, not ref-a
     env.cmd()
-        .args(["repo", "bundle", "info", "update-bundle"])
+        .args(["bundle", "info", "update-bundle"])
         .assert()
         .success()
         .stdout(predicate::str::contains("ref-b"))
@@ -164,13 +164,13 @@ fn bundle_remove() {
     env.create_bundle("removable-bundle", &["ref-a"]);
 
     env.cmd()
-        .args(["repo", "bundle", "remove", "--force", "removable-bundle"])
+        .args(["bundle", "remove", "--force", "removable-bundle"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Removed bundle"));
 
     env.cmd()
-        .args(["repo", "bundle", "list"])
+        .args(["bundle", "list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No bundles"));
@@ -336,7 +336,7 @@ fn full_bundle_workflow() {
     // 2. Create a bundle
     env.cmd()
         .args([
-            "repo", "bundle", "create", "my-stack",
+            "bundle", "create", "my-stack",
             "--ref", "docs-a", "--ref", "docs-b",
             "--description", "My full stack",
         ])
@@ -345,7 +345,7 @@ fn full_bundle_workflow() {
 
     // 3. Verify bundle in list
     env.cmd()
-        .args(["repo", "bundle", "list"])
+        .args(["bundle", "list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("my-stack"));
@@ -396,12 +396,12 @@ fn full_bundle_workflow() {
 
     // 11. Clean up central repo
     env.cmd()
-        .args(["repo", "bundle", "remove", "--force", "my-stack"])
+        .args(["bundle", "remove", "--force", "my-stack"])
         .assert()
         .success();
 
     env.cmd()
-        .args(["repo", "bundle", "list"])
+        .args(["bundle", "list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No bundles"));

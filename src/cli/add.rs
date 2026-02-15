@@ -13,6 +13,7 @@ pub fn run(
     path: Option<PathBuf>,
     include: Vec<String>,
     exclude: Vec<String>,
+    sync: bool,
 ) -> Result<()> {
     let repo = RepositoryStore::open(data_dir.map(|p| p.as_path()))
         .context("failed to open central repository")?;
@@ -23,7 +24,7 @@ pub fn run(
         if repo.get_bundle(&name).is_none() {
             anyhow::bail!(
                 "bundle '{name}' not found in central repository. \
-                Create it first with `refstore repo bundle create`."
+                Create it first with `refstore bundle create`."
             );
         }
         project
@@ -33,7 +34,7 @@ pub fn run(
     } else {
         if repo.get(&name).is_none() {
             anyhow::bail!(
-                "reference '{name}' not found in central repository. Add it first with `refstore repo add`."
+                "reference '{name}' not found in central repository. Add it first with `refstore store add`."
             );
         }
 
@@ -50,6 +51,12 @@ pub fn run(
         println!("Added '{name}' to project manifest.");
     }
 
-    println!("Run `refstore sync` to fetch the content.");
+    if sync {
+        println!("Syncing...");
+        drop(project);
+        crate::cli::sync::run(data_dir, Some(name), false)?;
+    } else {
+        println!("Run `refstore sync` to fetch the content.");
+    }
     Ok(())
 }

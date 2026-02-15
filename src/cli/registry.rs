@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 
 use super::RegistrySubcommand;
-use crate::store::RepositoryStore;
+use crate::store::{RegistryStore, RepositoryStore};
 
 pub fn run(data_dir: Option<&PathBuf>, cmd: RegistrySubcommand) -> Result<()> {
     match cmd {
@@ -56,6 +56,13 @@ pub fn run(data_dir: Option<&PathBuf>, cmd: RegistrySubcommand) -> Result<()> {
                     println!("Updated all registries");
                 }
             }
+            Ok(())
+        }
+        RegistrySubcommand::Init { path } => {
+            RegistryStore::init_new(&path)
+                .with_context(|| format!("failed to initialize registry at {}", path.display()))?;
+            println!("Initialized registry at {}", path.display());
+            println!("Add references with: refstore --data-dir {} store add <name> <source>", path.display());
             Ok(())
         }
     }

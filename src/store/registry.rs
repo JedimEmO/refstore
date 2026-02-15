@@ -21,6 +21,30 @@ impl RegistryStore {
         })
     }
 
+    /// Create a new empty registry at the given path.
+    pub fn init_new(path: &Path) -> Result<(), RefstoreError> {
+        fs::create_dir_all(path).map_err(|source| RefstoreError::DirCreate {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        fs::create_dir_all(path.join("content")).map_err(|source| RefstoreError::DirCreate {
+            path: path.join("content"),
+            source,
+        })?;
+
+        let index = RepositoryIndex::default();
+        let content = toml::to_string_pretty(&index)?;
+        let index_path = path.join("index.toml");
+        fs::write(&index_path, content)
+            .map_err(|source| RefstoreError::FileWrite { path: index_path, source })?;
+
+        crate::git::init(path)?;
+        crate::git::ensure_gitignore(path, &["config.toml"])?;
+        crate::git::commit(path, &["."], "Initialize registry")?;
+
+        Ok(())
+    }
+
     pub fn content_path(&self, name: &str) -> PathBuf {
         self.root.join("content").join(name)
     }

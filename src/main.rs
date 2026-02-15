@@ -44,7 +44,8 @@ async fn main() -> Result<()> {
             path,
             include,
             exclude,
-        } => cli::add::run(cli.data_dir.as_ref(), name, bundle, pin, path, include, exclude),
+            sync,
+        } => cli::add::run(cli.data_dir.as_ref(), name, bundle, pin, path, include, exclude, sync),
         cli::Command::Remove {
             name,
             bundle,
@@ -54,11 +55,17 @@ async fn main() -> Result<()> {
             cli::sync::run(cli.data_dir.as_ref(), name, force)
         }
         cli::Command::Status => cli::status::run(cli.data_dir.as_ref()),
-        cli::Command::Repo(cmd) => cli::repo::run(cli.data_dir.as_ref(), cmd),
+        cli::Command::List { tag, kind } => cli::list::run(cli.data_dir.as_ref(), tag, kind),
+        cli::Command::Search { query, reference } => {
+            cli::search::run(cli.data_dir.as_ref(), query, reference)
+        }
+        cli::Command::Info { name } => cli::info::run(cli.data_dir.as_ref(), name),
+        cli::Command::Versions { name } => cli::versions::run(cli.data_dir.as_ref(), name),
+        cli::Command::Store(cmd) => cli::store::run(cli.data_dir.as_ref(), cmd),
+        cli::Command::Bundle(cmd) => cli::bundle::run(cli.data_dir.as_ref(), cmd),
+        cli::Command::Registry(cmd) => cli::registry::run(cli.data_dir.as_ref(), cmd),
         cli::Command::Mcp => cli::mcp::run(cli.data_dir).await,
         cli::Command::InstallMcp { name, path } => cli::install_mcp::run(name, path),
-        cli::Command::Registry(cmd) => cli::registry::run(cli.data_dir.as_ref(), cmd),
-        cli::Command::Versions { name } => cli::versions::run(cli.data_dir.as_ref(), name),
         cli::Command::Config(cmd) => cli::config::run(cli.data_dir.as_ref(), cmd),
     }
 }

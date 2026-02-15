@@ -29,7 +29,7 @@ fn versions_shows_updates() {
 
     // Update the reference
     env.cmd()
-        .args(["repo", "update", "my-docs"])
+        .args(["store", "update", "my-docs"])
         .assert()
         .success();
 
@@ -75,7 +75,7 @@ fn sync_with_version_pin() {
     )
     .unwrap();
     env.cmd()
-        .args(["repo", "update", "my-docs"])
+        .args(["store", "update", "my-docs"])
         .assert()
         .success();
 
@@ -144,7 +144,7 @@ fn sync_without_version_uses_head() {
     )
     .unwrap();
     env.cmd()
-        .args(["repo", "update", "my-docs"])
+        .args(["store", "update", "my-docs"])
         .assert()
         .success();
 
@@ -174,14 +174,14 @@ fn repo_tag_create_and_list() {
 
     // Create a tag
     env.cmd()
-        .args(["repo", "tag", "v1.0", "-m", "First release"])
+        .args(["store", "tag", "v1.0", "-m", "First release"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Created tag 'v1.0'"));
 
     // List tags
     env.cmd()
-        .args(["repo", "tags"])
+        .args(["store", "tags"])
         .assert()
         .success()
         .stdout(predicate::str::contains("v1.0"));
@@ -194,7 +194,7 @@ fn repo_tags_empty() {
     env.add_repo_ref("my-docs", &sample);
 
     env.cmd()
-        .args(["repo", "tags"])
+        .args(["store", "tags"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No tags"));

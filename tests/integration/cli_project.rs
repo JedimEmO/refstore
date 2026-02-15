@@ -458,7 +458,7 @@ fn full_workflow() {
 
     // 2. Verify it's in the repo
     env.cmd()
-        .args(["repo", "list"])
+        .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("workflow-ref"));
@@ -508,12 +508,12 @@ fn full_workflow() {
 
     // 10. Clean up central repo
     env.cmd()
-        .args(["repo", "remove", "--force", "workflow-ref"])
+        .args(["store", "remove", "--force", "workflow-ref"])
         .assert()
         .success();
 
     env.cmd()
-        .args(["repo", "list"])
+        .args(["list"])
         .assert()
         .success()
         .stdout(predicate::str::contains("No references"));
