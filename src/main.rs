@@ -36,7 +36,9 @@ async fn main() -> Result<()> {
             path,
             self_ref,
             no_self_ref,
-        } => cli::init::run(path, commit_references, self_ref, no_self_ref),
+            install_mcp,
+            no_mcp,
+        } => cli::init::run(path, commit_references, self_ref, no_self_ref, install_mcp, no_mcp),
         cli::Command::Add {
             name,
             bundle,

@@ -58,6 +58,14 @@ pub enum Command {
         /// Automatically add the refstore self-reference without prompting
         #[arg(long, conflicts_with = "no_self_ref")]
         self_ref: bool,
+
+        /// Automatically install MCP server without prompting
+        #[arg(long, conflicts_with = "no_mcp")]
+        install_mcp: bool,
+
+        /// Skip MCP server installation prompt
+        #[arg(long, conflicts_with = "install_mcp")]
+        no_mcp: bool,
     },
 
     /// Add a reference or bundle to the project manifest

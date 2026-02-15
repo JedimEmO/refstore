@@ -23,10 +23,9 @@ LLM coding agents work better with reference material: API docs, coding conventi
 cargo install --git https://github.com/JedimEmO/refstore
 cd my-project
 refstore init
-refstore install-mcp
 ```
 
-That's it. Once the MCP server is registered, Claude Code (and other MCP clients) will use it automatically — you don't need to learn the full CLI.
+`init` will offer to install the MCP server (`.mcp.json`) automatically. Once registered, Claude Code (and other MCP clients) will use it — you don't need to learn the full CLI.
 
 ## Install
 
@@ -211,6 +210,8 @@ refstore sync                        # Syncs content from the v1.0 tag, not HEAD
 refstore init                        # Initialize refstore.toml in current directory
   --path <dir>                       #   Target directory
   --commit-references                #   Don't gitignore .references/
+  --install-mcp                      #   Install MCP server without prompting
+  --no-mcp                           #   Skip MCP server installation
 
 refstore add <name>                  # Add a reference to the project manifest
   --bundle                           #   Add a bundle instead of a single reference
