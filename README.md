@@ -17,15 +17,32 @@ LLM coding agents work better with reference material: API docs, coding conventi
 - **Version pinning** — pin references to specific registry tags or commits for reproducible builds.
 - **MCP server** — expose references to agents via Model Context Protocol, with configurable read/write scope.
 
+## Quickstart
+
+```bash
+cargo install --git https://github.com/JedimEmO/refstore
+cd my-project
+refstore init
+refstore install-mcp
+```
+
+That's it. Once the MCP server is registered, Claude Code (and other MCP clients) will use it automatically — you don't need to learn the full CLI.
+
 ## Install
 
+```bash
+cargo install --git https://github.com/JedimEmO/refstore
 ```
+
+Or from a local checkout:
+
+```bash
 cargo install --path .
 ```
 
 Requires Rust 1.85+ and git.
 
-## Quick start
+## Usage
 
 ```bash
 # Add a reference to the local store
