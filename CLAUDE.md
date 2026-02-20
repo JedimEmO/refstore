@@ -46,7 +46,7 @@ src/
     repository.rs      # RepositoryIndex (references + bundles maps)
     config.rs          # GlobalConfig, McpScope, Registry
   git/mod.rs           # All git operations via std::process::Command (not git2)
-  mcp/tools.rs         # MCP server: 9 tools via rmcp 0.15.0
+  mcp/tools.rs         # MCP server: 6 tools via rmcp 0.15.0
   error.rs             # RefstoreError enum (thiserror)
 ```
 
@@ -94,10 +94,10 @@ The MCP server in `src/mcp/tools.rs` uses:
 <!-- refstore -->
 ## refstore
 
-This project uses refstore to manage reference documentation. Read files in `.references/` for project-relevant context — each subdirectory maps to an entry in `refstore.toml`.
+This project uses refstore to manage reference documentation. Synced references live in `.references/` — **read them directly with your filesystem tools** (Read, Grep, Glob). Each subdirectory maps to an entry in `refstore.toml`.
 
-References can be added individually or via **bundles** (named groups of references defined in the central repository, e.g. a tech stack or project template). Bundles are listed under `bundles = [...]` in `refstore.toml` and expanded at sync time.
+Do NOT use MCP tools to read reference content. MCP tools are for discovery and management only.
 
 Commands: `refstore status`, `refstore sync`, `refstore list`, `refstore search <query>`, `refstore add <name>`, `refstore add --bundle <name>`, `refstore remove <name> --purge`
 
-MCP tools: `list_references`, `get_reference`, `read_reference_file`, `list_reference_files`, `search_references`, `list_bundles`, `get_bundle`
+MCP tools: `list_references`, `get_reference`, `add_to_project`, `list_bundles`, `get_bundle`, `get_tutorial`

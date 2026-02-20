@@ -24,30 +24,6 @@ pub struct GetReferenceParams {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, JsonSchema)]
-pub struct ReadReferenceFileParams {
-    #[schemars(description = "Name of the reference")]
-    pub reference: String,
-    #[schemars(description = "File path within the reference")]
-    pub path: String,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, JsonSchema)]
-pub struct ListReferenceFilesParams {
-    #[schemars(description = "Name of the reference")]
-    pub reference: String,
-    #[schemars(description = "Subdirectory path within the reference")]
-    pub subpath: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, JsonSchema)]
-pub struct SearchReferencesParams {
-    #[schemars(description = "Text to search for (case-insensitive substring match)")]
-    pub query: String,
-    #[schemars(description = "Limit search to a specific reference name")]
-    pub reference: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, JsonSchema)]
 pub struct AddToProjectParams {
     #[schemars(description = "Name of the reference to add")]
     pub name: String,
@@ -105,22 +81,25 @@ refstore manages reference documentation for LLM coding agents. References are
 curated docs (API guides, style guides, framework docs) stored in a central
 repository and synced into projects via `.references/` directories.
 
-## Quick Start Workflow
+## Reading Reference Content
+
+Synced references live in `.references/` in the project root. Each subdirectory
+corresponds to a reference listed in `refstore.toml`.
+
+**Use your filesystem tools (Read, Grep, Glob) to access reference content directly.**
+Do NOT use MCP tools to read reference content — the MCP tools are for discovery
+and management only.
+
+## Discovering and Adding References
 
 ### 1. Discover available references
 Use `list_references` to see all references in the repository.
 Use `list_references` with a `tag` to filter (e.g. tag=\"rust\").
 
-### 2. Explore a reference
+### 2. Get reference details
 Use `get_reference` with the name to see its description, kind, and tags.
-Use `list_reference_files` to browse its file tree.
-Use `read_reference_file` to read specific files.
 
-### 3. Search across references
-Use `search_references` with a query string to find content across all
-references. Optionally pass `reference` to limit to one reference.
-
-### 4. Add a reference to the current project
+### 3. Add a reference to the current project
 Use `add_to_project` with the reference name. This updates the project's
 `refstore.toml` manifest. The user then runs `refstore sync` in their
 terminal to download the content into `.references/`.
@@ -138,23 +117,13 @@ Bundles cannot be added via MCP — the user adds them with:
 ## Key Concepts
 - **Central repository**: ~/.local/share/refstore/ — stores all reference content
 - **Project manifest**: refstore.toml in the project root — lists which refs to sync
-- **Synced content**: .references/<name>/ — read these files for project context
+- **Synced content**: .references/<name>/ — read these with your filesystem tools
 - **Registries**: local registry is searched first, then remote registries alphabetically
 
-## Useful CLI Commands
-- `refstore list` — list all available references
-- `refstore search <query>` — search content across references
-- `refstore info <name>` — show details about a reference or bundle
-- `refstore add <name> --sync` — add to project and sync immediately
-- `refstore store add <name> <source>` — add content to the local store
-- `refstore bundle create <name> --ref ...` — create a bundle
-- `refstore registry init <path>` — create a new shareable registry
-
 ## Tips
-- Always `list_references` first to discover what's available
-- Read files in `.references/` for already-synced project context
+- Read `.references/` directly with your filesystem tools (Read, Grep, Glob)
+- Use `list_references` to discover what's available to add
 - After `add_to_project`, remind the user to run `refstore sync`
-- Use `search_references` to find specific APIs or patterns across all docs
 ";
         Ok(CallToolResult::success(vec![Content::text(tutorial)]))
     }
@@ -220,157 +189,6 @@ Bundles cannot be added via MCP — the user adds them with:
         );
 
         Ok(CallToolResult::success(vec![Content::text(info)]))
-    }
-
-    #[tool(description = "Read a file from a reference's cached content")]
-    async fn read_reference_file(
-        &self,
-        rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<ReadReferenceFileParams>,
-    ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let content_dir = match self.repo.resolve_content_path(&params.reference) {
-            Some(p) if p.exists() => p,
-            _ => {
-                return Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Reference '{}' has no cached content.",
-                    params.reference
-                ))]));
-            }
-        };
-
-        let file_path = content_dir.join(&params.path);
-        if !file_path.starts_with(&content_dir) {
-            return Ok(CallToolResult::error(vec![Content::text(
-                "Path traversal not allowed.".to_string(),
-            )]));
-        }
-
-        match std::fs::read_to_string(&file_path) {
-            Ok(content) => Ok(CallToolResult::success(vec![Content::text(content)])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Failed to read file: {e}"
-            ))])),
-        }
-    }
-
-    #[tool(description = "List files in a reference's cached content directory")]
-    async fn list_reference_files(
-        &self,
-        rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<ListReferenceFilesParams>,
-    ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let content_dir = self.repo.resolve_content_path(&params.reference)
-            .unwrap_or_else(|| self.repo.content_path(&params.reference));
-        let target = match &params.subpath {
-            Some(p) => content_dir.join(p),
-            None => content_dir.clone(),
-        };
-
-        if !target.exists() {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
-                "Path does not exist: {}",
-                target.display()
-            ))]));
-        }
-
-        if !target.starts_with(&content_dir) {
-            return Ok(CallToolResult::error(vec![Content::text(
-                "Path traversal not allowed.".to_string(),
-            )]));
-        }
-
-        let mut files = Vec::new();
-        if let Ok(entries) = std::fs::read_dir(&target) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                let kind = if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                    "dir"
-                } else {
-                    "file"
-                };
-                files.push(format!("{name} ({kind})"));
-            }
-        }
-        files.sort();
-
-        let text = if files.is_empty() {
-            "Directory is empty.".to_string()
-        } else {
-            files.join("\n")
-        };
-
-        Ok(CallToolResult::success(vec![Content::text(text)]))
-    }
-
-    #[tool(description = "Search for text within reference files (case-insensitive)")]
-    async fn search_references(
-        &self,
-        rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<SearchReferencesParams>,
-    ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let refs: Vec<_> = match &params.reference {
-            Some(name) => match self.repo.get(name) {
-                Some(r) => vec![r],
-                None => {
-                    return Ok(CallToolResult::error(vec![Content::text(format!(
-                        "Reference '{name}' not found."
-                    ))]));
-                }
-            },
-            None => self.repo.list(None, None),
-        };
-
-        let query_lower = params.query.to_lowercase();
-        let mut results = Vec::new();
-
-        for r in refs {
-            let content_dir = match self.repo.resolve_content_path(&r.name) {
-                Some(p) => p,
-                None => self.repo.content_path(&r.name),
-            };
-            if !content_dir.exists() {
-                continue;
-            }
-
-            for entry in walkdir::WalkDir::new(&content_dir)
-                .into_iter()
-                .filter_map(|e| e.ok())
-            {
-                if !entry.file_type().is_file() {
-                    continue;
-                }
-
-                if let Ok(content) = std::fs::read_to_string(entry.path()) {
-                    for (i, line) in content.lines().enumerate() {
-                        if line.to_lowercase().contains(&query_lower) {
-                            let rel = entry
-                                .path()
-                                .strip_prefix(&content_dir)
-                                .unwrap_or(entry.path());
-                            results.push(format!(
-                                "{}:{}:{}: {}",
-                                r.name,
-                                rel.display(),
-                                i + 1,
-                                line.trim()
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-
-        let text = if results.is_empty() {
-            format!("No matches found for '{}'.", params.query)
-        } else {
-            let count = results.len();
-            let truncated = if count > 50 {
-                results.truncate(50);
-                format!("\n... and {} more results", count - 50)
-            } else {
-                String::new()
-            };
-            format!("{}{truncated}", results.join("\n"))
-        };
-
-        Ok(CallToolResult::success(vec![Content::text(text)]))
     }
 
     #[tool(description = "List all bundles (named groups of references)")]
@@ -485,10 +303,10 @@ impl ServerHandler for RefstoreMcpServer {
         ServerInfo {
             instructions: Some(
                 "Reference documentation manager for LLM coding agents. \
-                 Call get_tutorial for usage patterns and workflows. \
+                 Synced references live in .references/ — use your filesystem tools \
+                 (Read, Grep, Glob) to access them directly. \
                  Use list_references to discover available references, \
-                 get_reference for details, read_reference_file to read content, \
-                 and search_references to find relevant documentation."
+                 get_reference for details, and add_to_project to add new references."
                     .into(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),
