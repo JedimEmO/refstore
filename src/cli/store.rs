@@ -95,7 +95,7 @@ fn run_update(data_dir: Option<&PathBuf>, name: Option<String>) -> Result<()> {
 
     let names: Vec<String> = match name {
         Some(n) => vec![n],
-        None => repo.list(None, None).iter().map(|r| r.name.clone()).collect(),
+        None => repo.list(None, None).iter().map(|r| r.reference.name.clone()).collect(),
     };
 
     if names.is_empty() {

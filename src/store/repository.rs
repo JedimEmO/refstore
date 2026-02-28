@@ -123,26 +123,39 @@ impl RepositoryStore {
 
     /// List all references across all registries.
     /// Local references take precedence (dedup by name).
-    pub fn list(&self, tag: Option<&str>, kind: Option<&str>) -> Vec<&Reference> {
+    pub fn list(&self, tag: Option<&str>, kind: Option<&str>) -> Vec<ResolvedReference<'_>> {
         let mut seen = std::collections::BTreeSet::new();
         let mut result = Vec::new();
 
         // Local first
         for r in self.local.list(tag, kind) {
             seen.insert(r.name.clone());
-            result.push(r);
+            result.push(ResolvedReference {
+                reference: r,
+                content_path: self.local.content_path(&r.name),
+                registry_name: "local",
+            });
         }
 
         // Then remotes
-        for (_, store) in &self.remotes {
+        for (reg_name, store) in &self.remotes {
             for r in store.list(tag, kind) {
                 if seen.insert(r.name.clone()) {
-                    result.push(r);
+                    result.push(ResolvedReference {
+                        reference: r,
+                        content_path: store.content_path(&r.name),
+                        registry_name: reg_name,
+                    });
                 }
             }
         }
 
         result
+    }
+
+    /// Whether any remote registries are configured.
+    pub fn has_remotes(&self) -> bool {
+        !self.remotes.is_empty()
     }
 
     // --- Local registry write operations ---

@@ -8,8 +8,8 @@ pub fn run(data_dir: Option<&PathBuf>, query: String, reference: Option<String>)
     let repo = RepositoryStore::open(data_dir.map(|p| p.as_path()))
         .context("failed to open central repository")?;
 
-    let refs: Vec<_> = match &reference {
-        Some(name) => match repo.get(name) {
+    let refs = match &reference {
+        Some(name) => match repo.resolve(name) {
             Some(r) => vec![r],
             None => anyhow::bail!("reference '{name}' not found"),
         },
@@ -19,11 +19,9 @@ pub fn run(data_dir: Option<&PathBuf>, query: String, reference: Option<String>)
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    for r in refs {
-        let content_dir = match repo.resolve_content_path(&r.name) {
-            Some(p) => p,
-            None => repo.content_path(&r.name),
-        };
+    for resolved in refs {
+        let r = resolved.reference;
+        let content_dir = resolved.content_path;
         if !content_dir.exists() {
             continue;
         }

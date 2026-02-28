@@ -15,7 +15,10 @@ pub fn run(data_dir: Option<&PathBuf>, tag: Option<String>, kind: Option<String>
         return Ok(());
     }
 
-    for r in refs {
+    let has_remotes = repo.has_remotes();
+
+    for resolved in refs {
+        let r = resolved.reference;
         let tags = if r.tags.is_empty() {
             String::new()
         } else {
@@ -26,8 +29,13 @@ pub fn run(data_dir: Option<&PathBuf>, tag: Option<String>, kind: Option<String>
             .as_ref()
             .map(|d| format!(" - {d}"))
             .unwrap_or_default();
+        let registry = if has_remotes && resolved.registry_name != "local" {
+            format!("{}: ", resolved.registry_name)
+        } else {
+            String::new()
+        };
 
-        println!("  {} ({}){}{}", r.name, r.kind, desc, tags);
+        println!("  {}{} ({}){}{}", registry, r.name, r.kind, desc, tags);
     }
     Ok(())
 }

@@ -9,7 +9,8 @@ pub fn run(data_dir: Option<&PathBuf>, name: String) -> Result<()> {
         .context("failed to open central repository")?;
 
     // Try as a reference first
-    if let Some(reference) = repo.get(&name) {
+    if let Some(resolved) = repo.resolve(&name) {
+        let reference = resolved.reference;
         println!("Name:        {}", reference.name);
         println!("Kind:        {}", reference.kind);
         println!("Source:      {}", reference.source);
@@ -19,6 +20,7 @@ pub fn run(data_dir: Option<&PathBuf>, name: String) -> Result<()> {
         if !reference.tags.is_empty() {
             println!("Tags:        {}", reference.tags.join(", "));
         }
+        println!("Registry:    {}", resolved.registry_name);
         println!(
             "Added:       {}",
             reference.added_at.format("%Y-%m-%d %H:%M:%S UTC")
@@ -30,9 +32,8 @@ pub fn run(data_dir: Option<&PathBuf>, name: String) -> Result<()> {
             println!("Checksum:    {checksum}");
         }
 
-        let content_path = repo.content_path(&name);
-        if content_path.exists() {
-            println!("Content:     {}", content_path.display());
+        if resolved.content_path.exists() {
+            println!("Content:     {}", resolved.content_path.display());
         } else {
             println!("Content:     (not cached)");
         }

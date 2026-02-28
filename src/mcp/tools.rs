@@ -134,9 +134,11 @@ Bundles cannot be added via MCP — the user adds them with:
         rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<ListReferencesParams>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         let refs = self.repo.list(params.tag.as_deref(), None);
+        let has_remotes = self.repo.has_remotes();
         let output: Vec<_> = refs
             .iter()
-            .map(|r| {
+            .map(|resolved| {
+                let r = resolved.reference;
                 let tags = if r.tags.is_empty() {
                     String::new()
                 } else {
@@ -147,7 +149,12 @@ Bundles cannot be added via MCP — the user adds them with:
                     .as_ref()
                     .map(|d| format!(" - {d}"))
                     .unwrap_or_default();
-                format!("{} ({}){}{}", r.name, r.kind, desc, tags)
+                let registry = if has_remotes && resolved.registry_name != "local" {
+                    format!("{}: ", resolved.registry_name)
+                } else {
+                    String::new()
+                };
+                format!("{}{} ({}){}{}", registry, r.name, r.kind, desc, tags)
             })
             .collect();
 
@@ -165,7 +172,7 @@ Bundles cannot be added via MCP — the user adds them with:
         &self,
         rmcp::handler::server::wrapper::Parameters(params): rmcp::handler::server::wrapper::Parameters<GetReferenceParams>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
-        let reference = match self.repo.get(&params.name) {
+        let resolved = match self.repo.resolve(&params.name) {
             Some(r) => r,
             None => {
                 return Ok(CallToolResult::error(vec![Content::text(format!(
@@ -174,9 +181,10 @@ Bundles cannot be added via MCP — the user adds them with:
                 ))]));
             }
         };
+        let reference = resolved.reference;
 
         let info = format!(
-            "Name: {}\nKind: {}\nSource: {}\nDescription: {}\nTags: {}",
+            "Name: {}\nKind: {}\nSource: {}\nDescription: {}\nTags: {}\nRegistry: {}",
             reference.name,
             reference.kind,
             reference.source,
@@ -185,7 +193,8 @@ Bundles cannot be added via MCP — the user adds them with:
                 "(none)".to_string()
             } else {
                 reference.tags.join(", ")
-            }
+            },
+            resolved.registry_name
         );
 
         Ok(CallToolResult::success(vec![Content::text(info)]))
